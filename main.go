@@ -11,8 +11,8 @@ import (
 	"log"
 	"os"
 
-	mysqlGenerator "github.com/morphar/sqlparsers/cli/generators/mysql"
-	postgresGenerator "github.com/morphar/sqlparsers/cli/generators/postgres"
+	mysqlGenerator "github.com/morphar/sqlparsers/generators/mysql"
+	postgresGenerator "github.com/morphar/sqlparsers/generators/postgres"
 	mysqlParser "github.com/morphar/sqlparsers/mysql"
 	postgresParser "github.com/morphar/sqlparsers/postgres"
 )
@@ -36,7 +36,7 @@ func main() {
 
 	if sql == "" && len(os.Args) != 2 {
 		fmt.Println("\nPlease provide an SQL to parse")
-		fmt.Println(`Example: qbcli -print -sql "SELECT * FROM users"`)
+		fmt.Println(`Example: sqlparsers -print -sql "SELECT * FROM users"`)
 		fmt.Println("\nFlags:")
 		flag.PrintDefaults()
 		fmt.Println("")
