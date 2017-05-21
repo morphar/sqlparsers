@@ -1,0 +1,229 @@
+/*
+Copyright 2017 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreedto in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// This file contains all the types necessary to make
+// RPC calls to Vttablet.
+
+syntax = "proto3";
+
+package query;
+
+option java_package="io.vitess.proto";
+
+// Flags sent from the MySQL C API
+enum MySqlFlag {
+  EMPTY = 0;
+  NOT_NULL_FLAG = 1;
+  PRI_KEY_FLAG = 2;
+  UNIQUE_KEY_FLAG = 4;
+  MULTIPLE_KEY_FLAG = 8;
+  BLOB_FLAG = 16;
+  UNSIGNED_FLAG = 32;
+  ZEROFILL_FLAG = 64;
+  BINARY_FLAG = 128;
+  ENUM_FLAG = 256;
+  AUTO_INCREMENT_FLAG = 512;
+  TIMESTAMP_FLAG = 1024;
+  SET_FLAG = 2048;
+  NO_DEFAULT_VALUE_FLAG = 4096;
+  ON_UPDATE_NOW_FLAG = 8192;
+  NUM_FLAG = 32768;
+  PART_KEY_FLAG = 16384;
+  GROUP_FLAG = 32768;
+  UNIQUE_FLAG = 65536;
+  BINCMP_FLAG = 131072;
+
+  option allow_alias = true;
+}
+
+// Flag allows us to qualify types by their common properties.
+enum Flag {
+  NONE = 0;
+  ISINTEGRAL = 256;
+  ISUNSIGNED = 512;
+  ISFLOAT = 1024;
+  ISQUOTED = 2048;
+  ISTEXT = 4096;
+  ISBINARY = 8192;
+}
+
+// Type defines the various supported data types in bind vars
+// and query results.
+enum Type {
+  // NULL_TYPE specifies a NULL type.
+  NULL_TYPE = 0;
+  // INT8 specifies a TINYINT type.
+  // Properties: 1, IsNumber.
+  INT8 = 257;
+  // UINT8 specifies a TINYINT UNSIGNED type.
+  // Properties: 2, IsNumber, IsUnsigned.
+  UINT8 = 770;
+  // INT16 specifies a SMALLINT type.
+  // Properties: 3, IsNumber.
+  INT16 = 259;
+  // UINT16 specifies a SMALLINT UNSIGNED type.
+  // Properties: 4, IsNumber, IsUnsigned.
+  UINT16 = 772;
+  // INT24 specifies a MEDIUMINT type.
+  // Properties: 5, IsNumber.
+  INT24 = 261;
+  // UINT24 specifies a MEDIUMINT UNSIGNED type.
+  // Properties: 6, IsNumber, IsUnsigned.
+  UINT24 = 774;
+  // INT32 specifies a INTEGER type.
+  // Properties: 7, IsNumber.
+  INT32 = 263;
+  // UINT32 specifies a INTEGER UNSIGNED type.
+  // Properties: 8, IsNumber, IsUnsigned.
+  UINT32 = 776;
+  // INT64 specifies a BIGINT type.
+  // Properties: 9, IsNumber.
+  INT64 = 265;
+  // UINT64 specifies a BIGINT UNSIGNED type.
+  // Properties: 10, IsNumber, IsUnsigned.
+  UINT64 = 778;
+  // FLOAT32 specifies a FLOAT type.
+  // Properties: 11, IsFloat.
+  FLOAT32 = 1035;
+  // FLOAT64 specifies a DOUBLE or REAL type.
+  // Properties: 12, IsFloat.
+  FLOAT64 = 1036;
+  // TIMESTAMP specifies a TIMESTAMP type.
+  // Properties: 13, IsQuoted.
+  TIMESTAMP = 2061;
+  // DATE specifies a DATE type.
+  // Properties: 14, IsQuoted.
+  DATE = 2062;
+  // TIME specifies a TIME type.
+  // Properties: 15, IsQuoted.
+  TIME = 2063;
+  // DATETIME specifies a DATETIME type.
+  // Properties: 16, IsQuoted.
+  DATETIME = 2064;
+  // YEAR specifies a YEAR type.
+  // Properties: 17, IsNumber, IsUnsigned.
+  YEAR = 785;
+  // DECIMAL specifies a DECIMAL or NUMERIC type.
+  // Properties: 18, None.
+  DECIMAL = 18;
+  // TEXT specifies a TEXT type.
+  // Properties: 19, IsQuoted, IsText.
+  TEXT = 6163;
+  // BLOB specifies a BLOB type.
+  // Properties: 20, IsQuoted, IsBinary.
+  BLOB = 10260;
+  // VARCHAR specifies a VARCHAR type.
+  // Properties: 21, IsQuoted, IsText.
+  VARCHAR = 6165;
+  // VARBINARY specifies a VARBINARY type.
+  // Properties: 22, IsQuoted, IsBinary.
+  VARBINARY = 10262;
+  // CHAR specifies a CHAR type.
+  // Properties: 23, IsQuoted, IsText.
+  CHAR = 6167;
+  // BINARY specifies a BINARY type.
+  // Properties: 24, IsQuoted, IsBinary.
+  BINARY = 10264;
+  // BIT specifies a BIT type.
+  // Properties: 25, IsQuoted.
+  BIT = 2073;
+  // ENUM specifies an ENUM type.
+  // Properties: 26, IsQuoted.
+  ENUM = 2074;
+  // SET specifies a SET type.
+  // Properties: 27, IsQuoted.
+  SET = 2075;
+  // TUPLE specifies a a tuple. This cannot
+  // be returned in a QueryResult, but it can
+  // be sent as a bind var.
+  // Properties: 28, None.
+  TUPLE = 28;
+  // GEOMETRY specifies a GEOMETRY type.
+  // Properties: 29, IsQuoted.
+  GEOMETRY = 2077;
+  // JSON specified a JSON type.
+  // Properties: 30, IsQuoted.
+  JSON = 2078;
+
+  // SQL specifies a SQL expression. This is not exposed, as it is only
+  // used in binlog parsing. There is no way to reserve a value in enums,
+  // so just using a comment here.
+  // Properties: 245, None.
+}
+
+// Value represents a typed value.
+message Value {
+  Type type = 1;
+  bytes value = 2;
+}
+
+// BindVariable represents a single bind variable in a Query.
+message BindVariable {
+  Type type = 1;
+  bytes value = 2;
+  // values are set if type is TUPLE.
+  repeated Value values = 3;
+}
+
+// BoundQuery is a query with its bind variables
+message BoundQuery {
+  // sql is the SQL query to execute
+  string sql = 1;
+
+  // bind_variables is a map of all bind variables to expand in the query
+  map<string, BindVariable> bind_variables = 2;
+}
+
+// Field describes a single column returned by a query
+message Field {
+  // name of the field as returned by mysql C API
+  string name = 1;
+
+  // vitess-defined type. Conversion function is in sqltypes package.
+  Type type = 2;
+
+  // Remaining fields from mysql C API.
+  // These fields are only populated when ExecuteOptions.included_fields
+  // is set to IncludedFields.ALL.
+  string table = 3;
+  string org_table = 4;
+  string database = 5;
+  string org_name = 6;
+
+  // column_length is really a uint32. All 32 bits can be used.
+  uint32 column_length = 7;
+
+  // charset is actually a uint16. Only the lower 16 bits are used.
+  uint32 charset = 8;
+
+  // decimals is actualy a uint8. Only the lower 8 bits are used.
+  uint32 decimals = 9;
+
+  // flags is actually a uint16. Only the lower 16 bits are used.
+  uint32 flags = 10;
+}
+
+// Row is a database row.
+message Row {
+  // lengths contains the length of each value in values.
+  // A length of -1 means that the field is NULL. While
+  // reading values, you have to accummulate the length
+  // to know the offset where the next value begins in values.
+  repeated sint64 lengths = 1;
+  // values contains a concatenation of all values in the row.
+  bytes values = 2;
+}
+
