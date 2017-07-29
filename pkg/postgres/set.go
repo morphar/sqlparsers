@@ -23,7 +23,6 @@
 package parser
 
 import "bytes"
-import "strings"
 
 // Set represents a SET or RESET statement.
 type Set struct {
@@ -75,51 +74,13 @@ func (node *Set) Format(buf *bytes.Buffer, f FmtFlags) {
 
 // SetTransaction represents a SET TRANSACTION statement.
 type SetTransaction struct {
-	Isolation    IsolationLevel
-	UserPriority UserPriority
+	Modes TransactionModes
 }
 
 // Format implements the NodeFormatter interface.
 func (node *SetTransaction) Format(buf *bytes.Buffer, f FmtFlags) {
-	var sep string
 	buf.WriteString("SET TRANSACTION")
-	if node.Isolation != UnspecifiedIsolation {
-		buf.WriteString(" ISOLATION LEVEL ")
-		buf.WriteString(node.Isolation.String())
-		sep = ","
-	}
-	if node.UserPriority != UnspecifiedUserPriority {
-		buf.WriteString(sep)
-		buf.WriteString(" PRIORITY ")
-		buf.WriteString(node.UserPriority.String())
-	}
-}
-
-// SetTimeZone represents a SET TIME ZONE statement.
-type SetTimeZone struct {
-	Value Expr
-}
-
-// Format implements the NodeFormatter interface.
-func (node *SetTimeZone) Format(buf *bytes.Buffer, f FmtFlags) {
-	buf.WriteString("SET TIME ZONE ")
-	switch node.Value.(type) {
-	case *DInterval:
-		FormatNode(buf, f, node.Value)
-	default:
-		var s string
-		switch v := node.Value.(type) {
-		case *DString:
-			s = string(*v)
-		case *StrVal:
-			s = strings.ToUpper(v.s)
-		}
-		if s == "DEFAULT" || s == "LOCAL" {
-			buf.WriteString(s)
-		} else {
-			FormatNode(buf, f, node.Value)
-		}
-	}
+	node.Modes.Format(buf, f)
 }
 
 // SetDefaultIsolation represents a SET SESSION CHARACTERISTICS AS TRANSACTION statement.

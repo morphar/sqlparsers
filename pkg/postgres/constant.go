@@ -268,7 +268,7 @@ func (expr *NumVal) ResolveAsType(ctx *SemaContext, typ Type) (Datum, error) {
 			return nil, err
 		}
 		oid := NewDOid(*d.(*DInt))
-		oid.kind = oidTypeToColType(typ)
+		oid.semanticType = oidTypeToColType(typ)
 		return oid, nil
 	default:
 		return nil, fmt.Errorf("could not resolve %T %v into a %T", expr, expr, typ)
@@ -279,27 +279,27 @@ func (expr *NumVal) ResolveAsType(ctx *SemaContext, typ Type) (Datum, error) {
 // resolvable between a set of provided constants. It returns false if constants
 // are not all of the same kind, and therefore share no common type.
 //
-// The function takes a slice of indexedExprs, but expects all indexedExprs
-// to wrap a Constant. The reason it does no take a slice of Constants instead
-// is to avoid forcing callers to allocate separate slices of Constant.
-func commonConstantType(vals []indexedExpr) (Type, bool) {
-	switch vals[0].e.(Constant).(type) {
+// The function takes a slice of Exprs and indexes, but expects all the indexed
+// Exprs to wrap a Constant. The reason it does no take a slice of Constants
+// instead is to avoid forcing callers to allocate separate slices of Constant.
+func commonConstantType(vals []Expr, idxs []int) (Type, bool) {
+	switch vals[idxs[0]].(Constant).(type) {
 	case *NumVal:
-		for _, val := range vals[1:] {
-			if _, ok := val.e.(Constant).(*NumVal); !ok {
+		for _, i := range idxs[1:] {
+			if _, ok := vals[i].(Constant).(*NumVal); !ok {
 				return nil, false
 			}
 		}
-		return commonNumericConstantType(vals), true
+		return commonNumericConstantType(vals, idxs), true
 	case *StrVal:
-		for _, val := range vals[1:] {
-			if _, ok := val.e.(Constant).(*StrVal); !ok {
+		for _, i := range idxs[1:] {
+			if _, ok := vals[i].(Constant).(*StrVal); !ok {
 				return nil, false
 			}
 		}
-		return commonStringConstantType(vals), true
+		return commonStringConstantType(vals, idxs), true
 	default:
-		panic(fmt.Sprintf("unexpected Constant type %T", vals[0].e))
+		panic(fmt.Sprintf("unexpected Constant type %T", vals[idxs[0]]))
 	}
 }
 
@@ -308,12 +308,12 @@ func commonConstantType(vals []indexedExpr) (Type, bool) {
 // is defined as the smallest numeric data type that all constants can
 // become without losing information.
 //
-// The function takes a slice of indexedExprs, but expects all indexedExprs
-// to wrap a *NumVal. The reason it does no take a slice of *NumVals instead
-// is to avoid forcing callers to allocate separate slices of *NumVals.
-func commonNumericConstantType(vals []indexedExpr) Type {
-	for _, c := range vals {
-		if !shouldConstantBecome(c.e.(*NumVal), TypeInt) {
+// The function takes a slice of Exprs and indexes, but expects all the indexed
+// Exprs to wrap a *NumVal. The reason it does no take a slice of *NumVals
+// instead is to avoid forcing callers to allocate separate slices of *NumVals.
+func commonNumericConstantType(vals []Expr, idxs []int) Type {
+	for _, i := range idxs {
+		if !shouldConstantBecome(vals[i].(*NumVal), TypeInt) {
 			return TypeDecimal
 		}
 	}
@@ -325,12 +325,12 @@ func commonNumericConstantType(vals []indexedExpr) Type {
 // the most specific string-like type that applies to all constants. This
 // suffers from the same limitation as StrVal.AvailableTypes.
 //
-// The function takes a slice of indexedExprs, but expects all indexedExprs
-// to wrap a *StrVal. The reason it does no take a slice of *StrVals instead
-// is to avoid forcing callers to allocate separate slices of *StrVals.
-func commonStringConstantType(vals []indexedExpr) Type {
-	for _, c := range vals {
-		if c.e.(*StrVal).bytesEsc {
+// The function takes a slice of Exprs and indexes, but expects all the indexed
+// Exprs to wrap a *StrVal. The reason it does no take a slice of *StrVals
+// instead is to avoid forcing callers to allocate separate slices of *StrVals.
+func commonStringConstantType(vals []Expr, idxs []int) Type {
+	for _, i := range idxs {
+		if vals[i].(*StrVal).bytesEsc {
 			return TypeBytes
 		}
 	}
@@ -368,9 +368,10 @@ var (
 		TypeTimestamp,
 		TypeTimestampTZ,
 		TypeInterval,
+		TypeUUID,
 	}
-	strValAvailBytesString = []Type{TypeBytes, TypeString}
-	strValAvailBytes       = []Type{TypeBytes}
+	strValAvailBytesString = []Type{TypeBytes, TypeString, TypeUUID}
+	strValAvailBytes       = []Type{TypeBytes, TypeUUID}
 )
 
 // AvailableTypes implements the Constant interface.
@@ -434,6 +435,11 @@ func (expr *StrVal) ResolveAsType(ctx *SemaContext, typ Type) (Datum, error) {
 		return ParseDTimestampTZ(expr.s, ctx.getLocation(), time.Microsecond)
 	case TypeInterval:
 		return ParseDInterval(expr.s)
+	case TypeUUID:
+		if expr.bytesEsc {
+			return ParseDUuidFromBytes([]byte(expr.s))
+		}
+		return ParseDUuidFromString(expr.s)
 	default:
 		return nil, fmt.Errorf("could not resolve %T %v into a %T", expr, expr, typ)
 	}

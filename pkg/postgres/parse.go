@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -59,7 +60,7 @@ type Parser struct {
 func (p *Parser) Parse(sql string) (stmts StatementList, err error) {
 	p.scanner.init(sql)
 	if p.parserImpl.Parse(&p.scanner) != 0 {
-		return nil, errors.New(p.scanner.lastError)
+		return nil, errors.New(p.scanner.lastError.msg)
 	}
 	return p.scanner.stmts, nil
 }
@@ -180,4 +181,52 @@ func ParseExpr(sql string) (Expr, error) {
 		return nil, errors.Errorf("expected 1 expression, found %d", len(exprs))
 	}
 	return exprs[0], nil
+}
+
+// ParseType parses a column type.
+func ParseType(sql string) (CastTargetType, error) {
+	expr, err := ParseExpr(fmt.Sprintf("1::%s", sql))
+	if err != nil {
+		return nil, err
+	}
+
+	cast, ok := expr.(*CastExpr)
+	if !ok {
+		return nil, errors.Errorf("expected a CastExpr, but found %T", expr)
+	}
+
+	return cast.Type, nil
+}
+
+// ParseStringAs parses s as type t.
+func ParseStringAs(t Type, s string, location *time.Location) (Datum, error) {
+	var d Datum
+	var err error
+	switch t {
+	case TypeBool:
+		d, err = ParseDBool(s)
+	case TypeBytes:
+		d = NewDBytes(DBytes(s))
+	case TypeDate:
+		d, err = ParseDDate(s, location)
+	case TypeDecimal:
+		d, err = ParseDDecimal(s)
+	case TypeFloat:
+		d, err = ParseDFloat(s)
+	case TypeInt:
+		d, err = ParseDInt(s)
+	case TypeInterval:
+		d, err = ParseDInterval(s)
+	case TypeString:
+		d = NewDString(s)
+	case TypeTimestamp:
+		d, err = ParseDTimestamp(s, time.Microsecond)
+	case TypeTimestampTZ:
+		d, err = ParseDTimestampTZ(s, location, time.Microsecond)
+	case TypeUUID:
+		d, err = ParseDUuidFromString(s)
+	default:
+		return nil, errors.Errorf("unknown type %s", t)
+	}
+	return d, err
 }

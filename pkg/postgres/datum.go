@@ -36,6 +36,7 @@ import (
 
 	"github.com/cockroachdb/apd"
 	"github.com/morphar/sqlparsers/pkg/postgres/util/duration"
+	"github.com/morphar/sqlparsers/pkg/postgres/util/uuid"
 )
 
 var (
@@ -199,6 +200,26 @@ func ParseDBool(s string) (*DBool, error) {
 		return nil, makeParseError(s, TypeBool, err)
 	}
 	return MakeDBool(DBool(b)), nil
+}
+
+// ParseDUuidFromString parses and returns the *DUuid Datum value represented
+// by the provided input string, or an error.
+func ParseDUuidFromString(s string) (*DUuid, error) {
+	uv, err := uuid.FromString(s)
+	if err != nil {
+		return nil, makeParseError(s, TypeUUID, err)
+	}
+	return NewDUuid(DUuid{uv}), nil
+}
+
+// ParseDUuidFromBytes parses and returns the *DUuid Datum value represented
+// by the provided input bytes, or an error.
+func ParseDUuidFromBytes(b []byte) (*DUuid, error) {
+	uv, err := uuid.FromBytes(b)
+	if err != nil {
+		return nil, makeParseError(string(b), TypeUUID, err)
+	}
+	return NewDUuid(DUuid{uv}), nil
 }
 
 // GetBool gets DBool or an error (also treats NULL as false, not an error).
@@ -620,7 +641,7 @@ func (d *DDecimal) Format(buf *bytes.Buffer, f FmtFlags) {
 	if quote {
 		buf.WriteByte('\'')
 	}
-	buf.WriteString(d.Decimal.ToStandard())
+	buf.WriteString(d.Decimal.String())
 	if quote {
 		buf.WriteString(`'::DECIMAL`)
 	}
@@ -746,7 +767,11 @@ func (*DString) AmbiguousFormat() bool { return true }
 
 // Format implements the NodeFormatter interface.
 func (d *DString) Format(buf *bytes.Buffer, f FmtFlags) {
-	encodeSQLStringWithFlags(buf, string(*d), f)
+	if f.withinArray {
+		encodeSQLStringInsideArray(buf, string(*d))
+	} else {
+		encodeSQLStringWithFlags(buf, string(*d), f)
+	}
 }
 
 // Size implements the Datum interface.
@@ -767,7 +792,7 @@ type DCollatedString struct {
 // construct collation keys efficiently.
 type CollationEnvironment struct {
 	cache  map[string]collationEnvironmentCacheEntry
-	buffer collate.Buffer
+	buffer *collate.Buffer
 }
 
 type collationEnvironmentCacheEntry struct {
@@ -795,7 +820,10 @@ func NewDCollatedString(
 	contents string, locale string, env *CollationEnvironment,
 ) *DCollatedString {
 	entry := env.getCacheEntry(locale)
-	key := entry.collator.KeyFromString(&env.buffer, contents)
+	if env.buffer == nil {
+		env.buffer = &collate.Buffer{}
+	}
+	key := entry.collator.KeyFromString(env.buffer, contents)
 	d := DCollatedString{contents, entry.locale, make([]byte, len(key))}
 	copy(d.Key, key)
 	env.buffer.Reset()
@@ -809,7 +837,7 @@ func (*DCollatedString) AmbiguousFormat() bool { return false }
 func (d *DCollatedString) Format(buf *bytes.Buffer, f FmtFlags) {
 	encodeSQLString(buf, d.Contents)
 	buf.WriteString(" COLLATE ")
-	encodeSQLIdent(buf, d.Locale)
+	encodeSQLIdent(buf, d.Locale, FmtSimple)
 }
 
 // ResolvedType implements the TypedExpr interface.
@@ -950,6 +978,90 @@ func (d *DBytes) Size() uintptr {
 	return unsafe.Sizeof(*d) + uintptr(len(*d))
 }
 
+// DUuid is the UUID Datum.
+type DUuid struct {
+	uuid.UUID
+}
+
+// NewDUuid is a helper routine to create a *DUuid initialized from its
+// argument.
+func NewDUuid(d DUuid) *DUuid {
+	return &d
+}
+
+// ResolvedType implements the TypedExpr interface.
+func (*DUuid) ResolvedType() Type {
+	return TypeUUID
+}
+
+// Compare implements the Datum interface.
+func (d *DUuid) Compare(ctx *EvalContext, other Datum) int {
+	if other == DNull {
+		// NULL is less than any non-NULL value.
+		return 1
+	}
+	v, ok := other.(*DUuid)
+	if !ok {
+		panic(makeUnsupportedComparisonMessage(d, other))
+	}
+	return bytes.Compare(d.GetBytes(), v.GetBytes())
+}
+
+func (d DUuid) equal(other *DUuid) bool {
+	return bytes.Equal(d.GetBytes(), other.GetBytes())
+}
+
+// Prev implements the Datum interface.
+func (d *DUuid) Prev() (Datum, bool) {
+	i := d.ToUint128()
+	u := uuid.FromUint128(i.Sub(1))
+	return NewDUuid(DUuid{u}), true
+}
+
+// Next implements the Datum interface.
+func (d *DUuid) Next() (Datum, bool) {
+	i := d.ToUint128()
+	u := uuid.FromUint128(i.Add(1))
+	return NewDUuid(DUuid{u}), true
+}
+
+// IsMax implements the Datum interface.
+func (d *DUuid) IsMax() bool {
+	return d.equal(dMaxUUID)
+}
+
+// IsMin implements the Datum interface.
+func (d *DUuid) IsMin() bool {
+	return d.equal(dMinUUID)
+}
+
+var dMinUUID = NewDUuid(DUuid{uuid.UUID{}})
+var dMaxUUID = NewDUuid(DUuid{uuid.UUID{UUID: [16]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}}})
+
+// min implements the Datum interface.
+func (*DUuid) min() (Datum, bool) {
+	return dMinUUID, true
+}
+
+// max implements the Datum interface.
+func (*DUuid) max() (Datum, bool) {
+	return dMaxUUID, true
+}
+
+// AmbiguousFormat implements the Datum interface.
+func (*DUuid) AmbiguousFormat() bool { return false }
+
+// Format implements the NodeFormatter interface.
+func (d *DUuid) Format(buf *bytes.Buffer, f FmtFlags) {
+	encodeSQLString(buf, d.UUID.String())
+}
+
+// Size implements the Datum interface.
+func (d *DUuid) Size() uintptr {
+	return unsafe.Sizeof(*d)
+}
+
 // DDate is the date Datum represented as the number of days after
 // the Unix epoch.
 type DDate int64
@@ -967,61 +1079,16 @@ func NewDDateFromTime(t time.Time, loc *time.Location) *DDate {
 	return NewDDate(DDate(secs / secondsInDay))
 }
 
-// time.Time formats.
-const (
-	dateFormat                = "2006-01-02"
-	dateFormatWithOffset      = dateFormat + " -070000"
-	dateFormatNoPad           = "2006-1-2"
-	dateFormatNoPadWithOffset = dateFormatNoPad + " -070000"
-)
-
-var dateFormats = []string{
-	dateFormat,
-	dateFormatWithOffset,
-	dateFormatNoPad,
-	dateFormatNoPadWithOffset,
-	time.RFC3339Nano,
-}
-
-var tzMatch = regexp.MustCompile(` [+-]`)
-
 // ParseDDate parses and returns the *DDate Datum value represented by the provided
 // string in the provided location, or an error if parsing is unsuccessful.
 func ParseDDate(s string, loc *time.Location) (*DDate, error) {
 	// No need to ParseInLocation here because we're only parsing dates.
-
-	l := len(s)
-	// HACK: go doesn't handle offsets that are not zero-padded from psql/jdbc.
-	// Thus, if we see `2015-10-05 +0:0:0` we need to change it to `+000000`.
-	if l > 6 && s[l-2] == ':' && s[l-4] == ':' && (s[l-6] == '+' || s[l-6] == '-') {
-		s = fmt.Sprintf("%s %c0%c0%c0%c", s[:l-6], s[l-6], s[l-5], s[l-3], s[l-1])
+	t, err := parseTimestampInLocation(s, time.UTC, TypeDate)
+	if err != nil {
+		return nil, err
 	}
 
-	if loc := tzMatch.FindStringIndex(s); loc != nil && l > loc[1] {
-		// Remove `:` characters from timezone specifier and pad to 6 digits. A
-		// leading 0 will be added if there are an odd number of digits in the
-		// specifier, since this is short-hand for an offset with number of hours
-		// equal to the leading digit.
-		// This converts all timezone specifiers to the stdNumSecondsTz format in
-		// time/format.go: `-070000`.
-		tzPos := loc[1]
-		tzSpec := strings.Replace(s[tzPos:], ":", "", -1)
-		if len(tzSpec)%2 == 1 {
-			tzSpec = "0" + tzSpec
-		}
-		if len(tzSpec) < 6 {
-			tzSpec += strings.Repeat("0", 6-len(tzSpec))
-		}
-		s = s[:tzPos] + tzSpec
-	}
-
-	for _, format := range dateFormats {
-		if t, err := time.Parse(format, s); err == nil {
-			return NewDDateFromTime(t, loc), nil
-		}
-	}
-
-	return nil, makeParseError(s, TypeDate, nil)
+	return NewDDateFromTime(t, loc), nil
 }
 
 // ResolvedType implements the TypedExpr interface.
@@ -1116,40 +1183,90 @@ func MakeDTimestamp(t time.Time, precision time.Duration) *DTimestamp {
 
 // time.Time formats.
 const (
-	timestampFormat                       = "2006-01-02 15:04:05"
-	timestampWithOffsetZoneFormat         = timestampFormat + "-07"
-	timestampWithOffsetSecondsZoneFormat  = timestampWithOffsetZoneFormat + ":00"
-	timestampWithNamedZoneFormat          = timestampFormat + " MST"
-	timestampRFC3339NanoWithoutZoneFormat = "2006-01-02T15:04:05"
-	timestampSequelizeFormat              = timestampFormat + ".000 -07:00"
+	dateFormat                = "2006-01-02"
+	dateFormatWithOffset      = dateFormat + " -070000"
+	dateFormatNoPad           = "2006-1-2"
+	dateFormatNoPadWithOffset = dateFormatNoPad + " -070000"
 
-	TimestampJdbcFormat = timestampFormat + ".999999 -07:00:00"
-	TimestampNodeFormat = timestampFormat + ".999999-07:00"
+	timestampFormat                      = dateFormatNoPad + " 15:04:05"
+	timestampWithOffsetZoneFormat        = timestampFormat + "-07"
+	timestampWithOffsetMinutesZoneFormat = timestampWithOffsetZoneFormat + ":00"
+	timestampWithOffsetSecondsZoneFormat = timestampWithOffsetMinutesZoneFormat + ":00"
+	timestampWithNamedZoneFormat         = timestampFormat + " MST"
+	timestampRFC3339WithoutZoneFormat    = dateFormat + "T15:04:05"
+	timestampSequelizeFormat             = timestampFormat + ".000 -07:00"
+
+	timestampJdbcFormat = timestampFormat + ".999999 -070000"
+	timestampNodeFormat = timestampFormat + ".999999-07:00"
+
+	// See https://github.com/lib/pq/blob/8df6253/encode.go#L480.
+	timestampPgwireFormat = "2006-01-02 15:04:05.999999999Z07:00"
+
+	// TimestampOutputFormat is used to output all timestamps.
+	TimestampOutputFormat = "2006-01-02 15:04:05.999999-07:00"
 )
 
 var timeFormats = []string{
 	dateFormat,
+	dateFormatWithOffset,
+	dateFormatNoPad,
+	dateFormatNoPadWithOffset,
 	time.RFC3339Nano,
+	timestampPgwireFormat,
 	timestampWithOffsetZoneFormat,
+	timestampWithOffsetMinutesZoneFormat,
 	timestampWithOffsetSecondsZoneFormat,
 	timestampFormat,
 	timestampWithNamedZoneFormat,
-	timestampRFC3339NanoWithoutZoneFormat,
+	timestampRFC3339WithoutZoneFormat,
 	timestampSequelizeFormat,
-	TimestampNodeFormat,
-	TimestampJdbcFormat,
+	timestampNodeFormat,
+	timestampJdbcFormat,
 }
 
-func parseTimestampInLocation(s string, loc *time.Location) (time.Time, error) {
+var (
+	tzMatch        = regexp.MustCompile(` [+-]`)
+	loneZeroRMatch = regexp.MustCompile(`:(\d(?:[^\d]|$))`)
+)
+
+func parseTimestampInLocation(s string, loc *time.Location, typ Type) (time.Time, error) {
+	origS := s
+	l := len(s)
+	// HACK: go doesn't handle offsets that are not zero-padded from psql/jdbc.
+	// Thus, if we see `2015-10-05 3:0:5 +0:0:0` we need to change it to
+	// `... 3:00:50 +00:00:00`.
+	s = loneZeroRMatch.ReplaceAllString(s, ":0${1}")
+	// This must be run twice, since ReplaceAllString doesn't touch overlapping
+	// matches and thus wouldn't fix a string of the form 3:3:3.
+	s = loneZeroRMatch.ReplaceAllString(s, ":0${1}")
+
+	if loc := tzMatch.FindStringIndex(s); loc != nil && l > loc[1] {
+		// Remove `:` characters from timezone specifier and pad to 6 digits. A
+		// leading 0 will be added if there are an odd number of digits in the
+		// specifier, since this is short-hand for an offset with number of hours
+		// equal to the leading digit.
+		// This converts all timezone specifiers to the stdNumSecondsTz format in
+		// time/format.go: `-070000`.
+		tzPos := loc[1]
+		tzSpec := strings.Replace(s[tzPos:], ":", "", -1)
+		if len(tzSpec)%2 == 1 {
+			tzSpec = "0" + tzSpec
+		}
+		if len(tzSpec) < 6 {
+			tzSpec += strings.Repeat("0", 6-len(tzSpec))
+		}
+		s = s[:tzPos] + tzSpec
+	}
+
 	for _, format := range timeFormats {
 		if t, err := time.ParseInLocation(format, s, loc); err == nil {
 			if err := checkForMissingZone(t, loc); err != nil {
-				return time.Time{}, makeParseError(s, TypeTimestamp, err)
+				return time.Time{}, makeParseError(origS, typ, err)
 			}
 			return t, nil
 		}
 	}
-	return time.Time{}, makeParseError(s, TypeTimestamp, nil)
+	return time.Time{}, makeParseError(origS, typ, nil)
 }
 
 // Unfortunately Go is very strict when parsing abbreviated zone names -- with
@@ -1180,7 +1297,7 @@ func ParseDTimestamp(s string, precision time.Duration) (*DTimestamp, error) {
 	// we do not want to add a non-UTC zone if one is not explicitly stated, so we
 	// use time.UTC rather than the session location. Unfortunately this also means
 	// we do not use the session zone for resolving abbreviations.
-	t, err := parseTimestampInLocation(s, time.UTC)
+	t, err := parseTimestampInLocation(s, time.UTC, TypeTimestamp)
 	if err != nil {
 		return nil, err
 	}
@@ -1273,7 +1390,7 @@ func (d *DTimestamp) Format(buf *bytes.Buffer, f FmtFlags) {
 	if !f.bareStrings {
 		buf.WriteByte('\'')
 	}
-	buf.WriteString(d.UTC().Format(TimestampNodeFormat))
+	buf.WriteString(d.UTC().Format(TimestampOutputFormat))
 	if !f.bareStrings {
 		buf.WriteByte('\'')
 	}
@@ -1305,7 +1422,7 @@ func MakeDTimestampTZFromDate(loc *time.Location, d *DDate) *DTimestampTZ {
 func ParseDTimestampTZ(
 	s string, loc *time.Location, precision time.Duration,
 ) (*DTimestampTZ, error) {
-	t, err := parseTimestampInLocation(s, loc)
+	t, err := parseTimestampInLocation(s, loc, TypeTimestampTZ)
 	if err != nil {
 		return nil, err
 	}
@@ -1370,7 +1487,7 @@ func (d *DTimestampTZ) Format(buf *bytes.Buffer, f FmtFlags) {
 	if !f.bareStrings {
 		buf.WriteByte('\'')
 	}
-	buf.WriteString(d.UTC().Format(TimestampNodeFormat))
+	buf.WriteString(d.UTC().Format(TimestampOutputFormat))
 	if !f.bareStrings {
 		buf.WriteByte('\'')
 	}
@@ -2080,6 +2197,11 @@ type DTable struct {
 	ValueGenerator
 }
 
+// EmptyDTable returns a new, empty DTable.
+func EmptyDTable() *DTable {
+	return &DTable{&arrayValueGenerator{array: NewDArray(TypeAny)}}
+}
+
 // AmbiguousFormat implements the Datum interface.
 func (*DTable) AmbiguousFormat() bool { return false }
 
@@ -2129,16 +2251,16 @@ func (*DTable) Size() uintptr { return unsafe.Sizeof(DTable{}) }
 type DOid struct {
 	// A DOid embeds a DInt, the underlying integer OID for this OID datum.
 	DInt
-	// kind indicates the particular variety of OID this datum is, whether raw
+	// semanticType indicates the particular variety of OID this datum is, whether raw
 	// oid or a reg* type.
-	kind *OidColType
+	semanticType *OidColType
 	// name is set to the resolved name of this OID, if available.
 	name string
 }
 
 // MakeDOid is a helper routine to create a DOid initialized from a DInt.
 func MakeDOid(d DInt) DOid {
-	return DOid{DInt: d, kind: oidColTypeOid, name: ""}
+	return DOid{DInt: d, semanticType: oidColTypeOid, name: ""}
 }
 
 // NewDOid is a helper routine to create a *DOid initialized from a DInt.
@@ -2151,7 +2273,7 @@ func NewDOid(d DInt) *DOid {
 // returns it.
 func (d *DOid) AsRegProc(name string) *DOid {
 	d.name = name
-	d.kind = oidColTypeRegProc
+	d.semanticType = oidColTypeRegProc
 	return d
 }
 
@@ -2179,7 +2301,7 @@ func (d *DOid) Compare(ctx *EvalContext, other Datum) int {
 
 // Format implements the Datum interface.
 func (d *DOid) Format(buf *bytes.Buffer, f FmtFlags) {
-	if d.kind == oidColTypeOid || d.name == "" {
+	if d.semanticType == oidColTypeOid || d.name == "" {
 		FormatNode(buf, f, &d.DInt)
 	} else {
 		encodeSQLStringWithFlags(buf, d.name, FmtBareStrings)
@@ -2195,18 +2317,18 @@ func (d *DOid) IsMin() bool { return d.DInt.IsMin() }
 // Next implements the Datum interface.
 func (d *DOid) Next() (Datum, bool) {
 	next, ok := d.DInt.Next()
-	return &DOid{*next.(*DInt), d.kind, ""}, ok
+	return &DOid{*next.(*DInt), d.semanticType, ""}, ok
 }
 
 // Prev implements the Datum interface.
 func (d *DOid) Prev() (Datum, bool) {
 	prev, ok := d.DInt.Prev()
-	return &DOid{*prev.(*DInt), d.kind, ""}, ok
+	return &DOid{*prev.(*DInt), d.semanticType, ""}, ok
 }
 
 // ResolvedType implements the Datum interface.
 func (d *DOid) ResolvedType() Type {
-	return oidColTypeToType(d.kind)
+	return oidColTypeToType(d.semanticType)
 }
 
 // Size implements the Datum interface.
@@ -2215,13 +2337,13 @@ func (d *DOid) Size() uintptr { return unsafe.Sizeof(*d) }
 // max implements the Datum interface.
 func (d *DOid) max() (Datum, bool) {
 	max, ok := d.DInt.max()
-	return &DOid{*max.(*DInt), d.kind, ""}, ok
+	return &DOid{*max.(*DInt), d.semanticType, ""}, ok
 }
 
 // min implements the Datum interface.
 func (d *DOid) min() (Datum, bool) {
 	min, ok := d.DInt.min()
-	return &DOid{*min.(*DInt), d.kind, ""}, ok
+	return &DOid{*min.(*DInt), d.semanticType, ""}, ok
 }
 
 // DOidWrapper is a Datum implementation which is a wrapper around a Datum, allowing

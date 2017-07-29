@@ -314,7 +314,7 @@ const (
 	All
 )
 
-var comparisonOpName = [...]string{
+var ComparisonOpName = [...]string{
 	EQ:                "=",
 	LT:                "<",
 	GT:                ">",
@@ -343,10 +343,10 @@ var comparisonOpName = [...]string{
 }
 
 func (i ComparisonOperator) String() string {
-	if i < 0 || i > ComparisonOperator(len(comparisonOpName)-1) {
+	if i < 0 || i > ComparisonOperator(len(ComparisonOpName)-1) {
 		return fmt.Sprintf("ComparisonOp(%d)", i)
 	}
-	return comparisonOpName[i]
+	return ComparisonOpName[i]
 }
 
 // hasSubOperator returns if the ComparisonOperator is used with a sub-operator.
@@ -869,7 +869,6 @@ func (*UnaryExpr) operatorExpr() {}
 // Format implements the NodeFormatter interface.
 func (node *UnaryExpr) Format(buf *bytes.Buffer, f FmtFlags) {
 	buf.WriteString(node.Operator.String())
-	buf.WriteByte(' ')
 	exprFmtWithParen(buf, f, node.Expr)
 }
 
@@ -1081,12 +1080,13 @@ var (
 	decimalCastTypes = []Type{TypeNull, TypeBool, TypeInt, TypeFloat, TypeDecimal, TypeString, TypeCollatedString,
 		TypeTimestamp, TypeTimestampTZ, TypeDate, TypeInterval}
 	stringCastTypes = []Type{TypeNull, TypeBool, TypeInt, TypeFloat, TypeDecimal, TypeString, TypeCollatedString,
-		TypeBytes, TypeTimestamp, TypeTimestampTZ, TypeInterval, TypeDate, TypeOid}
-	bytesCastTypes     = []Type{TypeNull, TypeString, TypeCollatedString, TypeBytes}
+		TypeBytes, TypeTimestamp, TypeTimestampTZ, TypeInterval, TypeUUID, TypeDate, TypeOid}
+	bytesCastTypes     = []Type{TypeNull, TypeString, TypeCollatedString, TypeBytes, TypeUUID}
 	dateCastTypes      = []Type{TypeNull, TypeString, TypeCollatedString, TypeDate, TypeTimestamp, TypeTimestampTZ, TypeInt}
 	timestampCastTypes = []Type{TypeNull, TypeString, TypeCollatedString, TypeDate, TypeTimestamp, TypeTimestampTZ, TypeInt}
 	intervalCastTypes  = []Type{TypeNull, TypeString, TypeCollatedString, TypeInt, TypeInterval}
 	oidCastTypes       = []Type{TypeNull, TypeString, TypeCollatedString, TypeInt, TypeOid}
+	uuidCastTypes      = []Type{TypeNull, TypeString, TypeCollatedString, TypeBytes, TypeUUID}
 )
 
 // validCastTypes returns a set of types that can be cast into the provided type.
@@ -1110,6 +1110,8 @@ func validCastTypes(t Type) []Type {
 		return timestampCastTypes
 	case TypeInterval:
 		return intervalCastTypes
+	case TypeUUID:
+		return uuidCastTypes
 	case TypeOid, TypeRegClass, TypeRegNamespace, TypeRegProc, TypeRegProcedure, TypeRegType:
 		return oidCastTypes
 	default:
@@ -1199,7 +1201,7 @@ type CollateExpr struct {
 func (node *CollateExpr) Format(buf *bytes.Buffer, f FmtFlags) {
 	exprFmtWithParen(buf, f, node.Expr)
 	buf.WriteString(" COLLATE ")
-	encodeSQLIdent(buf, node.Locale)
+	encodeSQLIdent(buf, node.Locale, FmtSimple)
 }
 
 func (node *AliasedTableExpr) String() string { return AsString(node) }
@@ -1221,6 +1223,7 @@ func (node *DDecimal) String() string         { return AsString(node) }
 func (node *DFloat) String() string           { return AsString(node) }
 func (node *DInt) String() string             { return AsString(node) }
 func (node *DInterval) String() string        { return AsString(node) }
+func (node *DUuid) String() string            { return AsString(node) }
 func (node *DString) String() string          { return AsString(node) }
 func (node *DCollatedString) String() string  { return AsString(node) }
 func (node *DTimestamp) String() string       { return AsString(node) }

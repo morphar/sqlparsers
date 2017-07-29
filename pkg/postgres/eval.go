@@ -25,14 +25,16 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/lib/pq/oid"
+	"github.com/morphar/sqlparsers/pkg/postgres/util"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
 	"github.com/cockroachdb/apd"
-	"github.com/morphar/sqlparsers/pkg/postgres/util"
 	"github.com/morphar/sqlparsers/pkg/postgres/util/duration"
 	"github.com/morphar/sqlparsers/pkg/postgres/util/hlc"
 	"github.com/morphar/sqlparsers/pkg/postgres/util/timeutil"
+	"github.com/morphar/sqlparsers/pkg/postgres/util/uuid"
 )
 
 var (
@@ -73,15 +75,16 @@ func (UnaryOp) preferred() bool {
 func init() {
 	for op, overload := range UnaryOps {
 		for i, impl := range overload {
-			impl.types = ArgTypes{{"arg", impl.Typ}}
-			impl.retType = fixedReturnType(impl.ReturnType)
-			UnaryOps[op][i] = impl
+			casted := impl.(UnaryOp)
+			casted.types = ArgTypes{{"arg", casted.Typ}}
+			casted.retType = fixedReturnType(casted.ReturnType)
+			UnaryOps[op][i] = casted
 		}
 	}
 }
 
 // unaryOpOverload is an overloaded set of unary operator implementations.
-type unaryOpOverload []UnaryOp
+type unaryOpOverload []overloadImpl
 
 // UnaryOps contains the unary operations indexed by operation type.
 var UnaryOps = map[UnaryOperator]unaryOpOverload{
@@ -192,20 +195,22 @@ func (BinOp) preferred() bool {
 func init() {
 	for op, overload := range BinOps {
 		for i, impl := range overload {
-			impl.types = ArgTypes{{"left", impl.LeftType}, {"right", impl.RightType}}
-			impl.retType = fixedReturnType(impl.ReturnType)
-			BinOps[op][i] = impl
+			casted := impl.(BinOp)
+			casted.types = ArgTypes{{"left", casted.LeftType}, {"right", casted.RightType}}
+			casted.retType = fixedReturnType(casted.ReturnType)
+			BinOps[op][i] = casted
 		}
 	}
 }
 
 // binOpOverload is an overloaded set of binary operator implementations.
-type binOpOverload []BinOp
+type binOpOverload []overloadImpl
 
 func (o binOpOverload) lookupImpl(left, right Type) (BinOp, bool) {
 	for _, fn := range o {
-		if fn.matchParams(left, right) {
-			return fn, true
+		casted := fn.(BinOp)
+		if casted.matchParams(left, right) {
+			return casted, true
 		}
 	}
 	return BinOp{}, false
@@ -991,19 +996,21 @@ func (CmpOp) preferred() bool {
 func init() {
 	for op, overload := range CmpOps {
 		for i, impl := range overload {
-			impl.types = ArgTypes{{"left", impl.LeftType}, {"right", impl.RightType}}
-			CmpOps[op][i] = impl
+			casted := impl.(CmpOp)
+			casted.types = ArgTypes{{"left", casted.LeftType}, {"right", casted.RightType}}
+			CmpOps[op][i] = casted
 		}
 	}
 }
 
 // cmpOpOverload is an overloaded set of comparison operator implementations.
-type cmpOpOverload []CmpOp
+type cmpOpOverload []overloadImpl
 
 func (o cmpOpOverload) lookupImpl(left, right Type) (CmpOp, bool) {
 	for _, fn := range o {
-		if fn.matchParams(left, right) {
-			return fn, true
+		casted := fn.(CmpOp)
+		if casted.matchParams(left, right) {
+			return casted, true
 		}
 	}
 	return CmpOp{}, false
@@ -1125,6 +1132,11 @@ var CmpOps = map[ComparisonOperator]cmpOpOverload{
 		CmpOp{
 			LeftType:  TypeInterval,
 			RightType: TypeInterval,
+			fn:        cmpOpScalarEQFn,
+		},
+		CmpOp{
+			LeftType:  TypeUUID,
+			RightType: TypeUUID,
 			fn:        cmpOpScalarEQFn,
 		},
 		CmpOp{
@@ -1258,6 +1270,11 @@ var CmpOps = map[ComparisonOperator]cmpOpOverload{
 			fn:        cmpOpScalarLTFn,
 		},
 		CmpOp{
+			LeftType:  TypeUUID,
+			RightType: TypeUUID,
+			fn:        cmpOpScalarLTFn,
+		},
+		CmpOp{
 			LeftType:  TypeTuple,
 			RightType: TypeTuple,
 			fn: func(ctx *EvalContext, left Datum, right Datum) (Datum, error) {
@@ -1383,6 +1400,11 @@ var CmpOps = map[ComparisonOperator]cmpOpOverload{
 			fn:        cmpOpScalarLEFn,
 		},
 		CmpOp{
+			LeftType:  TypeUUID,
+			RightType: TypeUUID,
+			fn:        cmpOpScalarLEFn,
+		},
+		CmpOp{
 			LeftType:  TypeTuple,
 			RightType: TypeTuple,
 			fn: func(ctx *EvalContext, left Datum, right Datum) (Datum, error) {
@@ -1403,7 +1425,9 @@ var CmpOps = map[ComparisonOperator]cmpOpOverload{
 		makeEvalTupleIn(TypeTimestamp),
 		makeEvalTupleIn(TypeTimestampTZ),
 		makeEvalTupleIn(TypeInterval),
+		makeEvalTupleIn(TypeUUID),
 		makeEvalTupleIn(TypeTuple),
+		makeEvalTupleIn(TypeOid),
 	},
 
 	Like: {
@@ -1676,7 +1700,7 @@ type EvalPlanner interface {
 	QueryRow(ctx context.Context, sql string, args ...interface{}) (Datums, error)
 
 	// QualifyWithDatabase resolves a possibly unqualified table name into a
-	// table name that is qualified by database.
+	// normalized table name that is qualified by database.
 	QualifyWithDatabase(ctx context.Context, t *NormalizableTableName) (*TableName, error)
 }
 
@@ -1690,7 +1714,8 @@ type contextHolder func() context.Context
 // distsqlrun.EvalContext. Make sure to keep the two in sync.
 // TODO(andrei): remove or limit the duplication.
 type EvalContext struct {
-	NodeID int32
+	ClusterID uuid.UUID
+	NodeID    int32
 	// The statement timestamp. May be different for every statement.
 	// Used for statement_timestamp().
 	stmtTimestamp time.Time
@@ -1744,6 +1769,17 @@ func MakeTestingEvalContext() EvalContext {
 	ctx.SetStmtTimestamp(now)
 	ctx.SetClusterTimestamp(hlc.Timestamp{WallTime: now.Unix()})
 	return ctx
+}
+
+// NewTestingEvalContext is a convenience version of MakeTestingEvalContext
+// that returns a pointer.
+func NewTestingEvalContext() *EvalContext {
+	ctx := MakeTestingEvalContext()
+	return &ctx
+}
+
+// Stop closes out the EvalContext and must be called once it is no longer in use.
+func (ctx *EvalContext) Stop(c context.Context) {
 }
 
 // GetStmtTimestamp retrieves the current statement timestamp as per
@@ -1961,16 +1997,18 @@ type regTypeInfo struct {
 	nameCol string
 	// objName is a human-readable name describing the objects in the table.
 	objName string
+	// errType is the pg error code in case the object does not exist.
+	errType string
 }
 
 // regTypeInfos maps an OidColType to a regTypeInfo that describes the
 // pg_catalog table that contains the entities of the type of the key.
 var regTypeInfos = map[*OidColType]regTypeInfo{
-	oidColTypeRegClass:     {"pg_class", "relname", "relation"},
-	oidColTypeRegType:      {"pg_type", "typname", "type"},
-	oidColTypeRegProc:      {"pg_proc", "proname", "function"},
-	oidColTypeRegProcedure: {"pg_proc", "proname", "function"},
-	oidColTypeRegNamespace: {"pg_namespace", "nspname", "namespace"},
+	oidColTypeRegClass:     {"pg_class", "relname", "relation", "CodeUndefinedTableError"},
+	oidColTypeRegType:      {"pg_type", "typname", "type", "CodeUndefinedObjectError"},
+	oidColTypeRegProc:      {"pg_proc", "proname", "function", "CodeUndefinedFunctionError"},
+	oidColTypeRegProcedure: {"pg_proc", "proname", "function", "CodeUndefinedFunctionError"},
+	oidColTypeRegNamespace: {"pg_namespace", "nspname", "namespace", "CodeUndefinedObjectError"},
 }
 
 // queryOidWithJoin looks up the name or OID of an input OID or string in the
@@ -1984,7 +2022,7 @@ var regTypeInfos = map[*OidColType]regTypeInfo{
 func queryOidWithJoin(
 	ctx *EvalContext, typ *OidColType, d Datum, joinClause string, additionalWhere string,
 ) (*DOid, error) {
-	ret := &DOid{kind: typ}
+	ret := &DOid{semanticType: typ}
 	info := regTypeInfos[typ]
 	var queryCol string
 	switch d.(type) {
@@ -2076,7 +2114,7 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 			res = NewDInt(DInt(f))
 		case *DDecimal:
 			d := ctx.getTmpDec()
-			_, err := DecimalCtx.ToIntegral(d, &v.Decimal)
+			_, err := DecimalCtx.RoundToIntegralValue(d, &v.Decimal)
 			if err != nil {
 				return nil, err
 			}
@@ -2208,6 +2246,8 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 			// of the duration (e.g. "5s") and not of the interval itself (e.g.
 			// "INTERVAL '5s'").
 			s = t.ValueAsString()
+		case *DUuid:
+			s = t.UUID.String()
 		case *DString:
 			s = string(*t)
 		case *DCollatedString:
@@ -2245,7 +2285,21 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 			return NewDBytes(DBytes(*t)), nil
 		case *DCollatedString:
 			return NewDBytes(DBytes(t.Contents)), nil
+		case *DUuid:
+			return NewDBytes(DBytes(t.GetBytes())), nil
 		case *DBytes:
+			return d, nil
+		}
+
+	case *UUIDColType:
+		switch t := d.(type) {
+		case *DString:
+			return ParseDUuidFromString(string(*t))
+		case *DCollatedString:
+			return ParseDUuidFromString(t.Contents)
+		case *DBytes:
+			return ParseDUuidFromBytes([]byte(*t))
+		case *DUuid:
 			return d, nil
 		}
 
@@ -2318,25 +2372,25 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 		case *DOid:
 			switch typ {
 			case oidColTypeOid:
-				return &DOid{kind: typ, DInt: v.DInt}, nil
+				return &DOid{semanticType: typ, DInt: v.DInt}, nil
 			default:
 				oid, err := queryOid(ctx, typ, v)
 				if err != nil {
 					oid = NewDOid(v.DInt)
-					oid.kind = typ
+					oid.semanticType = typ
 				}
 				return oid, nil
 			}
 		case *DInt:
 			switch typ {
 			case oidColTypeOid:
-				return &DOid{kind: typ, DInt: *v}, nil
+				return &DOid{semanticType: typ, DInt: *v}, nil
 			default:
 				tmpOid := NewDOid(*v)
 				oid, err := queryOid(ctx, typ, tmpOid)
 				if err != nil {
 					oid = tmpOid
-					oid.kind = typ
+					oid.semanticType = typ
 				}
 				return oid, nil
 			}
@@ -2345,7 +2399,9 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 			// Trim whitespace and unwrap outer quotes if necessary.
 			// This is required to mimic postgres.
 			s = strings.TrimSpace(s)
+			var hadQuotes bool
 			if len(s) > 1 && s[0] == '"' && s[len(s)-1] == '"' {
+				hadQuotes = true
 				s = s[1 : len(s)-1]
 			}
 
@@ -2355,7 +2411,7 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 				if err != nil {
 					return nil, err
 				}
-				return &DOid{kind: typ, DInt: *i}, nil
+				return &DOid{semanticType: typ, DInt: *i}, nil
 			case oidColTypeRegProc, oidColTypeRegProcedure:
 				// Trim procedure type parameters, e.g. `max(int)` becomes `max`.
 				// Postgres only does this when the cast is ::regprocedure, but we're
@@ -2375,12 +2431,26 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 				}
 				return queryOid(ctx, typ, NewDString(funcDef.Name))
 			case oidColTypeRegType:
+				colType, err := ParseType(s)
+				if err == nil {
+					datumType := CastTargetToDatumType(colType)
+					return &DOid{semanticType: typ, DInt: DInt(datumType.Oid()), name: datumType.SQLName()}, nil
+				}
+				// Fall back to searching pg_type, since we don't provide syntax for
+				// every postgres type that we understand OIDs for.
 				// Trim type modifiers, e.g. `numeric(10,3)` becomes `numeric`.
 				s = pgSignatureRegexp.ReplaceAllString(s, "$1")
 				return queryOid(ctx, typ, NewDString(s))
+
 			case oidColTypeRegClass:
 				// Resolving a table name requires looking at the search path to
 				// determine the database that owns it.
+				// If the table wasn't quoted, normalize it. This matches the behavior
+				// when creating tables - table names are normalized (downcased) unless
+				// they're double quoted.
+				if !hadQuotes {
+					s = Name(s).Normalize()
+				}
 				t := &NormalizableTableName{
 					TableNameReference: UnresolvedName{
 						Name(s),
@@ -2393,7 +2463,7 @@ func (expr *CastExpr) Eval(ctx *EvalContext) (Datum, error) {
 				// table because we only have the database name, not its OID, which is
 				// what is stored in pg_class. This extra join means we can't use
 				// queryOid like everyone else.
-				return queryOidWithJoin(ctx, typ, NewDString(s),
+				return queryOidWithJoin(ctx, typ, NewDString(tn.Table()),
 					"JOIN pg_catalog.pg_namespace ON relnamespace = pg_namespace.oid",
 					fmt.Sprintf("AND nspname = '%s'", tn.Database()))
 			default:
@@ -2436,6 +2506,11 @@ func (expr *IndirectionExpr) Eval(ctx *EvalContext) (Datum, error) {
 
 	// Index into the DArray, using 1-indexing.
 	arr := MustBeDArray(d)
+
+	// INT2VECTOR uses 0-indexing.
+	if w, ok := d.(*DOidWrapper); ok && w.Oid == oid.T_int2vector {
+		subscriptIdx++
+	}
 	if subscriptIdx < 1 || subscriptIdx > arr.Len() {
 		return DNull, nil
 	}
@@ -2759,6 +2834,11 @@ func (t *DBool) Eval(_ *EvalContext) (Datum, error) {
 
 // Eval implements the TypedExpr interface.
 func (t *DBytes) Eval(_ *EvalContext) (Datum, error) {
+	return t, nil
+}
+
+// Eval implements the TypedExpr interface.
+func (t *DUuid) Eval(_ *EvalContext) (Datum, error) {
 	return t, nil
 }
 

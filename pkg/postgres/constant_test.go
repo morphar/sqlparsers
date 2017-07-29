@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/cockroachdb/apd"
 )
 
@@ -259,7 +261,11 @@ func TestStringConstantResolveAvailableTypes(t *testing.T) {
 		},
 		{
 			c:            &StrVal{s: "2010-09-28 12:00:00.1", bytesEsc: false},
-			parseOptions: typeSet(TypeString, TypeBytes, TypeTimestamp, TypeTimestampTZ),
+			parseOptions: typeSet(TypeString, TypeBytes, TypeTimestamp, TypeTimestampTZ, TypeDate),
+		},
+		{
+			c:            &StrVal{s: "2006-07-08T00:00:00.000000123Z", bytesEsc: false},
+			parseOptions: typeSet(TypeString, TypeBytes, TypeTimestamp, TypeTimestampTZ, TypeDate),
 		},
 		{
 			c:            &StrVal{s: "PT12H2M", bytesEsc: false},
@@ -314,7 +320,9 @@ func TestStringConstantResolveAvailableTypes(t *testing.T) {
 					i, availType, test.c, res)
 			} else {
 				expectedDatum := parseFuncs[availType](t, test.c.s)
-				if res.Compare(&EvalContext{}, expectedDatum) != 0 {
+				evalCtx := NewTestingEvalContext()
+				defer evalCtx.Stop(context.Background())
+				if res.Compare(evalCtx, expectedDatum) != 0 {
 					t.Errorf("%d: type %s expected to be resolved from the StrVal %v to Datum %v"+
 						", found %v",
 						i, availType, test.c, expectedDatum, res)
@@ -373,7 +381,7 @@ func TestFoldNumericConstants(t *testing.T) {
 		{`-1.2`, `-1.2`},
 		// Unary ops (int only).
 		{`~1`, `-2`},
-		{`~1.2`, `~ 1.2`},
+		{`~1.2`, `~1.2`},
 		// Binary ops.
 		{`1 + 1`, `2`},
 		{`1.2 + 2.3`, `3.5`},

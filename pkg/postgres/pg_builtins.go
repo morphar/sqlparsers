@@ -38,6 +38,7 @@ var typeBuiltinsHaveUnderscore = map[oid.Oid]struct{}{
 	TypeDate.Oid():        {},
 	TypeDecimal.Oid():     {},
 	TypeInterval.Oid():    {},
+	TypeUUID.Oid():        {},
 	TypeTimestamp.Oid():   {},
 	TypeTimestampTZ.Oid(): {},
 	TypeTuple.Oid():       {},
@@ -297,6 +298,26 @@ var pgBuiltins = map[string][]Builtin{
 			ReturnType: fixedReturnType(TypeBool),
 			fn: func(_ *EvalContext, _ Datums) (Datum, error) {
 				return DBoolTrue, nil
+			},
+			Info: notUsableInfo,
+		},
+	},
+	// pg_table_is_visible returns true if the input oid corresponds to a table
+	// that is part of the databases on the search path.
+	// https://www.postgresql.org/docs/9.6/static/functions-info.html
+	"pg_table_is_visible": {
+		Builtin{
+			Types:      ArgTypes{{"oid", TypeOid}},
+			ReturnType: fixedReturnType(TypeBool),
+			fn: func(ctx *EvalContext, args Datums) (Datum, error) {
+				oid := args[0]
+				t, err := ctx.Planner.QueryRow(ctx.Ctx(),
+					"SELECT nspname FROM pg_class c JOIN pg_namespace n ON c.relnamespace=n.oid "+
+						"WHERE c.oid=$1 AND nspname=ANY(current_schemas(true));", oid)
+				if err != nil {
+					return nil, err
+				}
+				return MakeDBool(DBool(t != nil)), nil
 			},
 			Info: notUsableInfo,
 		},

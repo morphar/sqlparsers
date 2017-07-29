@@ -215,11 +215,19 @@ func (*ParenTableExpr) tableExpr()   {}
 func (*JoinTableExpr) tableExpr()    {}
 func (*FuncExpr) tableExpr()         {}
 
-// The Explain node, used for the EXPLAIN statement, can also be
-// present as a data source in FROM, and thus implements the TableExpr
-// interface.
+// StatementSource encapsulates one of the other statements as a data source.
+type StatementSource struct {
+	Statement Statement
+}
 
-func (*Explain) tableExpr() {}
+// Format implements the NodeFormatter interface.
+func (node *StatementSource) Format(buf *bytes.Buffer, f FmtFlags) {
+	buf.WriteByte('[')
+	node.Statement.Format(buf, f)
+	buf.WriteByte(']')
+}
+
+func (*StatementSource) tableExpr() {}
 
 // IndexID is a custom type for IndexDescriptor IDs.
 type IndexID uint32
@@ -270,14 +278,7 @@ type AliasedTableExpr struct {
 
 // Format implements the NodeFormatter interface.
 func (node *AliasedTableExpr) Format(buf *bytes.Buffer, f FmtFlags) {
-	_, exprIsJoin := node.Expr.(*JoinTableExpr)
-	if exprIsJoin {
-		buf.WriteByte('(')
-	}
 	FormatNode(buf, f, node.Expr)
-	if exprIsJoin {
-		buf.WriteByte(')')
-	}
 	if node.Hints != nil {
 		FormatNode(buf, f, node.Hints)
 	}
@@ -465,15 +466,42 @@ func (d Direction) String() string {
 	return directionName[d]
 }
 
+// OrderType indicates which type of expression is used in ORDER BY.
+type OrderType int
+
+const (
+	// OrderByColumn is the regular "by expression/column" ORDER BY specification.
+	OrderByColumn OrderType = iota
+	// OrderByIndex enables the user to specify a given index' columns implicitly.
+	OrderByIndex
+)
+
 // Order represents an ordering expression.
 type Order struct {
+	OrderType OrderType
 	Expr      Expr
 	Direction Direction
+	// Table/Index replaces Expr when OrderType = OrderByIndex.
+	Table NormalizableTableName
+	// If Index is empty, then the order should use the primary key.
+	Index Name
 }
 
 // Format implements the NodeFormatter interface.
 func (node *Order) Format(buf *bytes.Buffer, f FmtFlags) {
-	FormatNode(buf, f, node.Expr)
+	if node.OrderType == OrderByColumn {
+		FormatNode(buf, f, node.Expr)
+	} else {
+		if node.Index == "" {
+			buf.WriteString("PRIMARY KEY ")
+			FormatNode(buf, f, node.Table)
+		} else {
+			buf.WriteString("INDEX ")
+			FormatNode(buf, f, node.Table)
+			buf.WriteByte('@')
+			FormatNode(buf, f, node.Index)
+		}
+	}
 	if node.Direction != DefaultDirection {
 		buf.WriteByte(' ')
 		buf.WriteString(node.Direction.String())

@@ -34,7 +34,11 @@ var (
 	encodeMap [256]byte
 	// mustQuoteMap contains characters that require that their enclosing
 	// string be quoted, even when FmtFlags.bareStrings is true.
+	//
+	// This is used e.g. when stringifying expressions with array types
+	// for pgwire.
 	mustQuoteMap = map[byte]bool{
+		' ': true,
 		',': true,
 		'{': true,
 		'}': true,
@@ -48,10 +52,57 @@ func encodeSQLString(buf *bytes.Buffer, in string) {
 	encodeSQLStringWithFlags(buf, in, FmtSimple)
 }
 
+// EscapeSQLString returns an escaped SQL representation of the given
+// string. This is suitable for safely producing a SQL string valid
+// for input to the parser.
+func EscapeSQLString(in string) string {
+	var buf bytes.Buffer
+	encodeSQLString(&buf, in)
+	return buf.String()
+}
+
+// encodeEscapedChar is used internally to write out a character from a larger
+// string that needs to be escaped to a buffer.
+func encodeEscapedChar(
+	buf *bytes.Buffer,
+	entireString string,
+	currentRune rune,
+	currentByte byte,
+	currentIdx int,
+	quoteChar byte,
+) {
+	ln := utf8.RuneLen(currentRune)
+	if currentRune == utf8.RuneError {
+		// Errors are due to invalid unicode points, so escape the bytes.
+		// Make sure this is run at least once in case ln == -1.
+		buf.Write(hexMap[entireString[currentIdx]])
+		for ri := 1; ri < ln; ri++ {
+			buf.Write(hexMap[entireString[currentIdx+ri]])
+		}
+	} else if ln == 1 {
+		// For single-byte runes, do the same as encodeSQLBytes.
+		if encodedChar := encodeMap[currentByte]; encodedChar != dontEscape {
+			buf.WriteByte('\\')
+			buf.WriteByte(encodedChar)
+		} else if currentByte == quoteChar {
+			buf.WriteByte('\\')
+			buf.WriteByte(quoteChar)
+		} else {
+			// Escape non-printable characters.
+			buf.Write(hexMap[currentByte])
+		}
+	} else if ln == 2 {
+		// For multi-byte runes, print them based on their width.
+		fmt.Fprintf(buf, `\u%04X`, currentRune)
+	} else {
+		fmt.Fprintf(buf, `\U%08X`, currentRune)
+	}
+}
+
 // encodeSQLStringWithFlags writes a string literal to buf. All unicode and
 // non-printable characters are escaped. FmtFlags controls the output format:
 // if f.bareStrings is true, the output string will not be wrapped in quotes
-// if possible.
+// if the strings contains no special characters.
 func encodeSQLStringWithFlags(buf *bytes.Buffer, in string, f FmtFlags) {
 	// See http://www.postgresql.org/docs/9.4/static/sql-syntax-lexical.html
 	start := 0
@@ -65,7 +116,7 @@ func encodeSQLStringWithFlags(buf *bytes.Buffer, in string, f FmtFlags) {
 				// We have to quote this string - ignore bareStrings setting
 				bareStrings = false
 			}
-			if encodeMap[ch] == dontEscape {
+			if encodeMap[ch] == dontEscape && ch != '\'' {
 				continue
 			}
 		}
@@ -81,28 +132,7 @@ func encodeSQLStringWithFlags(buf *bytes.Buffer, in string, f FmtFlags) {
 		} else {
 			start = i + ln
 		}
-		if r == utf8.RuneError {
-			// Errors are due to invalid unicode points, so escape the bytes.
-			// Make sure this is run at least once in case ln == -1.
-			buf.Write(hexMap[in[i]])
-			for ri := 1; ri < ln; ri++ {
-				buf.Write(hexMap[in[i+ri]])
-			}
-		} else if ln == 1 {
-			// For single-byte runes, do the same as encodeSQLBytes.
-			if encodedChar := encodeMap[ch]; encodedChar != dontEscape {
-				buf.WriteByte('\\')
-				buf.WriteByte(encodedChar)
-			} else {
-				// Escape non-printable characters.
-				buf.Write(hexMap[ch])
-			}
-		} else if ln == 2 {
-			// For multi-byte runes, print them based on their width.
-			fmt.Fprintf(buf, `\u%04X`, r)
-		} else {
-			fmt.Fprintf(buf, `\U%08X`, r)
-		}
+		encodeEscapedChar(buf, in, r, ch, i, '\'')
 	}
 
 	quote := !escapedString && !bareStrings
@@ -115,14 +145,34 @@ func encodeSQLStringWithFlags(buf *bytes.Buffer, in string, f FmtFlags) {
 	}
 }
 
-func encodeSQLIdent(buf *bytes.Buffer, s string) {
+// encodeSQLStringInsideArray writes a string literal to buf using the "string
+// within array" formatting.
+func encodeSQLStringInsideArray(buf *bytes.Buffer, in string) {
+	buf.WriteByte('"')
+	// Loop through each unicode code point.
+	for i, r := range in {
+		ch := byte(r)
+		if r >= 0x20 && r < 0x7F && encodeMap[ch] == dontEscape && ch != '"' {
+			// Character is printable doesn't need escaping - just print it out.
+			buf.WriteByte(ch)
+		} else {
+			encodeEscapedChar(buf, in, r, ch, i, '"')
+		}
+	}
+
+	buf.WriteByte('"')
+}
+
+func encodeSQLIdent(buf *bytes.Buffer, s string, f FmtFlags) {
 	if isNonKeywordBareIdentifier(s) {
 		buf.WriteString(s)
 		return
 	}
 
 	// The only character that requires escaping is a double quote.
-	buf.WriteString(`"`)
+	if !f.bareIdentifiers {
+		buf.WriteString(`"`)
+	}
 	start := 0
 	for i, n := 0, len(s); i < n; i++ {
 		ch := s[i]
@@ -138,7 +188,9 @@ func encodeSQLIdent(buf *bytes.Buffer, s string) {
 	if start < len(s) {
 		buf.WriteString(s[start:])
 	}
-	buf.WriteString(`"`)
+	if !f.bareIdentifiers {
+		buf.WriteString(`"`)
+	}
 }
 
 func encodeSQLBytes(buf *bytes.Buffer, in string) {
@@ -152,6 +204,12 @@ func encodeSQLBytes(buf *bytes.Buffer, in string) {
 			buf.WriteString(in[start:i])
 			buf.WriteByte('\\')
 			buf.WriteByte(encodedChar)
+			start = i + 1
+		} else if ch == '\'' {
+			// We can't just fold this into encodeMap because encodeMap is also used for strings which aren't quoted with single-quotes
+			buf.WriteString(in[start:i])
+			buf.WriteByte('\\')
+			buf.WriteByte(ch)
 			start = i + 1
 		} else if ch < 0x20 || ch >= 0x7F {
 			buf.WriteString(in[start:i])
@@ -172,7 +230,6 @@ func init() {
 		'\r': 'r',
 		'\t': 't',
 		'\\': '\\',
-		'\'': '\'',
 	}
 
 	for i := range encodeMap {

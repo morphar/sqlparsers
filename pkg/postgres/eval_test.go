@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/context"
+
 	"github.com/morphar/sqlparsers/pkg/postgres/testutils"
 	"github.com/morphar/sqlparsers/pkg/postgres/util/hlc"
 )
@@ -571,7 +573,7 @@ func TestEval(t *testing.T) {
 		{`-9.99999e+05`, `-999999`},
 		{`999999.0`, `999999.0`},
 		{`1000000.0`, `1000000.0`},
-		{`-1e+06`, `-1000000`},
+		{`-1e+06`, `-1E+6`},
 		{`-9.99999e+05::decimal`, `-999999`},
 		{`999999.0::decimal`, `999999.0`},
 		{`1000000.0::decimal`, `1000000.0`},
@@ -951,8 +953,8 @@ func TestTimeConversion(t *testing.T) {
 		{`20160101 13:00 +0655`, `%Y%m%d %H:%M %z`, `2016-01-01 06:05:00+00:00`, `%Y%m%d %H:%M %z`, `20160101 06:05 +0000`},
 	}
 
+	ctx := &EvalContext{}
 	for _, test := range tests {
-		ctx := &EvalContext{}
 		exprStr := fmt.Sprintf("experimental_strptime('%s', '%s')", test.start, test.format)
 		expr, err := ParseExpr(exprStr)
 		if err != nil {
@@ -1039,8 +1041,8 @@ func TestEvalError(t *testing.T) {
 			`could not parse 'bar' as type float: strconv.ParseFloat: parsing "bar": invalid syntax`},
 		{`'baz'::decimal`,
 			`could not parse 'baz' as type decimal`},
-		{`'2010-09-28 12:00:00.1'::date`,
-			`could not parse '2010-09-28 12:00:00.1' as type date`},
+		{`'2010-09-28 12:00:00.1q'::date`,
+			`could not parse '2010-09-28 12:00:00.1q' as type date`},
 		{`'2010-09-28 12:00.1 MST'::timestamp`,
 			`could not parse '2010-09-28 12:00.1 MST' as type timestamp`},
 		{`'abcd'::interval`,
@@ -1089,7 +1091,9 @@ func TestEvalError(t *testing.T) {
 		}
 		typedExpr, err := TypeCheck(expr, nil, TypeAny)
 		if err == nil {
-			_, err = typedExpr.Eval(&EvalContext{})
+			evalCtx := NewTestingEvalContext()
+			defer evalCtx.Stop(context.Background())
+			_, err = typedExpr.Eval(evalCtx)
 		}
 		if !testutils.IsError(err, strings.Replace(regexp.QuoteMeta(d.expected), `\.\*`, `.*`, -1)) {
 			t.Errorf("%s: expected %s, but found %v", d.expr, d.expected, err)
@@ -1187,7 +1191,7 @@ func TestClusterTimestampConversion(t *testing.T) {
 		ts := hlc.Timestamp{WallTime: d.walltime, Logical: d.logical}
 		ctx.SetClusterTimestamp(ts)
 		dec := ctx.GetClusterTimestamp()
-		final := dec.ToStandard()
+		final := dec.Text('f')
 		if final != d.expected {
 			t.Errorf("expected %s, but found %s", d.expected, final)
 		}
@@ -1212,7 +1216,9 @@ func TestCastToCollatedString(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			val, err := typedexpr.Eval(&EvalContext{})
+			evalCtx := NewTestingEvalContext()
+			defer evalCtx.Stop(context.Background())
+			val, err := typedexpr.Eval(evalCtx)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -16,25 +16,9 @@
 
 package parser
 
-import "testing"
-import "github.com/morphar/sqlparsers/pkg/postgres/util/leaktest"
-
-func TestReNormalizeName(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	testCases := []struct {
-		in, expected string
-	}{
-		{"HELLO", "hello"},                            // Lowercase is the norm
-		{"ıİ", "ii"},                                  // Turkish/Azeri special cases
-		{"no\u0308rmalization", "n\u00f6rmalization"}, // NFD -> NFC.
-	}
-	for _, test := range testCases {
-		s := ReNormalizeName(test.in)
-		if test.expected != s {
-			t.Errorf("%s: expected %s, but found %s", test.in, test.expected, s)
-		}
-	}
-}
+import (
+	"testing"
+)
 
 func TestNormalizeExpr(t *testing.T) {
 	defer mockNameTypes(map[string]Type{

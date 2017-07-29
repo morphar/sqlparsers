@@ -19,6 +19,7 @@ package parser
 import (
 	"bytes"
 	"fmt"
+	"math"
 )
 
 // overloadImpl is an implementation of an overloaded function. It provides
@@ -234,6 +235,16 @@ func returnTypeToFixedType(s returnTyper) Type {
 	return TypeAny
 }
 
+type typeCheckOverloadState struct {
+	overloads       []overloadImpl
+	overloadIdxs    []uint8 // index into overloads
+	exprs           []Expr
+	typedExprs      []TypedExpr
+	resolvableIdxs  []int // index into exprs/typedExprs
+	constIdxs       []int // index into exprs/typedExprs
+	placeholderIdxs []int // index into exprs/typedExprs
+}
+
 // typeCheckOverloadedExprs determines the correct overload to use for the given set of
 // expression parameters, along with an optional desired return type. It returns the expression
 // parameters after being type checked, along with the chosen overloadImpl. If an overloaded
@@ -241,6 +252,14 @@ func returnTypeToFixedType(s returnTyper) Type {
 func typeCheckOverloadedExprs(
 	ctx *SemaContext, desired Type, overloads []overloadImpl, exprs ...Expr,
 ) ([]TypedExpr, overloadImpl, error) {
+	if len(overloads) > math.MaxUint8 {
+		return nil, nil, fmt.Errorf("too many overloads (%d > 255)", len(overloads))
+	}
+
+	var s typeCheckOverloadState
+	s.exprs = exprs
+	s.overloads = overloads
+
 	// Special-case the HomogeneousType overload. We determine its return type by checking that
 	// all parameters have the same type.
 	for _, overload := range overloads {
@@ -258,84 +277,43 @@ func typeCheckOverloadedExprs(
 	}
 
 	// Hold the resolved type expressions of the provided exprs, in order.
-	typedExprs := make([]TypedExpr, len(exprs))
-
-	// Split the expressions into three groups of indexed expressions:
-	// - Placeholders
-	// - Constants
-	// - All other Exprs
-	var resolvableExprs, constExprs, placeholderExprs []indexedExpr
-	for i, expr := range exprs {
-		idxExpr := indexedExpr{e: expr, i: i}
-		switch {
-		case isConstant(expr):
-			constExprs = append(constExprs, idxExpr)
-		case ctx.isUnresolvedPlaceholder(expr):
-			placeholderExprs = append(placeholderExprs, idxExpr)
-		default:
-			resolvableExprs = append(resolvableExprs, idxExpr)
-		}
-	}
-
-	// defaultTypeCheck type checks the constant and placeholder expressions without a preference
-	// and adds them to the type checked slice.
-	defaultTypeCheck := func(errorOnPlaceholders bool) error {
-		for _, expr := range constExprs {
-			typ, err := expr.e.TypeCheck(ctx, TypeAny)
-			if err != nil {
-				return fmt.Errorf("error type checking constant value: %v", err)
-			}
-			typedExprs[expr.i] = typ
-		}
-		for _, expr := range placeholderExprs {
-			if errorOnPlaceholders {
-				_, err := expr.e.TypeCheck(ctx, TypeAny)
-				return err
-			}
-			// If we dont want to error on args, avoid type checking them without a desired type.
-			typedExprs[expr.i] = StripParens(expr.e).(*Placeholder)
-		}
-		return nil
-	}
+	s.typedExprs = make([]TypedExpr, len(exprs))
+	s.constIdxs, s.placeholderIdxs, s.resolvableIdxs = typeCheckSplitExprs(ctx, exprs)
 
 	// If no overloads are provided, just type check parameters and return.
 	if len(overloads) == 0 {
-		for _, expr := range resolvableExprs {
-			typ, err := expr.e.TypeCheck(ctx, TypeAny)
+		for _, i := range s.resolvableIdxs {
+			typ, err := exprs[i].TypeCheck(ctx, TypeAny)
 			if err != nil {
 				return nil, nil, fmt.Errorf("error type checking resolved expression: %v", err)
 			}
-			typedExprs[expr.i] = typ
+			s.typedExprs[i] = typ
 		}
-		if err := defaultTypeCheck(false); err != nil {
+		var err error
+		if s, err = defaultTypeCheck(ctx, s, false); err != nil {
 			return nil, nil, err
 		}
-		return typedExprs, nil, nil
+		return s.typedExprs, nil, nil
 	}
 
-	// Function to filter overloads which return false from the provided closure.
-	filterOverloads := func(fn func(overloadImpl) bool) {
-		for i := 0; i < len(overloads); {
-			if fn(overloads[i]) {
-				i++
-			} else {
-				overloads[i], overloads[len(overloads)-1] = overloads[len(overloads)-1], overloads[i]
-				overloads = overloads[:len(overloads)-1]
-			}
-		}
+	s.overloadIdxs = make([]uint8, len(overloads))
+	for i := 0; i < len(overloads); i++ {
+		s.overloadIdxs[i] = uint8(i)
 	}
 
 	// Filter out incorrect parameter length overloads.
-	filterOverloads(func(o overloadImpl) bool {
-		return o.params().matchLen(len(exprs))
-	})
+	s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+		func(o overloadImpl) bool {
+			return o.params().matchLen(len(exprs))
+		})
 
 	// Filter out overloads which constants cannot become.
-	for _, expr := range constExprs {
-		constExpr := expr.e.(Constant)
-		filterOverloads(func(o overloadImpl) bool {
-			return canConstantBecome(constExpr, o.params().getAt(expr.i))
-		})
+	for _, i := range s.constIdxs {
+		constExpr := exprs[i].(Constant)
+		s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+			func(o overloadImpl) bool {
+				return canConstantBecome(constExpr, o.params().getAt(i))
+			})
 	}
 
 	// TODO(nvanbenschoten): We should add a filtering step here to filter
@@ -343,154 +321,126 @@ func typeCheckOverloadedExprs(
 	// f(int, float) is not a possible candidate for the expression f($1, $1).
 
 	// Filter out overloads on resolved types.
-	for _, expr := range resolvableExprs {
+	for _, i := range s.resolvableIdxs {
 		paramDesired := TypeAny
-		if len(overloads) == 1 {
+		if len(s.overloadIdxs) == 1 {
 			// Once we get down to a single overload candidate, begin desiring its
 			// parameter types for the corresponding argument expressions.
-			paramDesired = overloads[0].params().getAt(expr.i)
+			paramDesired = s.overloads[s.overloadIdxs[0]].params().getAt(i)
 		}
-		typ, err := expr.e.TypeCheck(ctx, paramDesired)
+		typ, err := exprs[i].TypeCheck(ctx, paramDesired)
 		if err != nil {
 			return nil, nil, err
 		}
-		typedExprs[expr.i] = typ
-		filterOverloads(func(o overloadImpl) bool {
-			return o.params().matchAt(typ.ResolvedType(), expr.i)
-		})
+		s.typedExprs[i] = typ
+		s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+			func(o overloadImpl) bool {
+				return o.params().matchAt(typ.ResolvedType(), i)
+			})
 	}
 
-	// checkReturn checks the number of remaining overloaded function implementations, returning
-	// if we should stop overload resolution, along with a nullable overloadImpl to return if
-	// we should stop overload resolution.
-	checkReturn := func() (bool, overloadImpl, error) {
-		switch len(overloads) {
-		case 0:
-			if err := defaultTypeCheck(false); err != nil {
-				return true, nil, err
-			}
-			return true, nil, nil
-		case 1:
-			o := overloads[0]
-			p := o.params()
-			for _, expr := range constExprs {
-				des := p.getAt(expr.i)
-				typ, err := expr.e.TypeCheck(ctx, des)
-				if err != nil {
-					return true, nil, fmt.Errorf("error type checking constant value: %v", err)
-				} else if des != nil && !typ.ResolvedType().Equivalent(des) {
-					panic(fmt.Errorf("desired constant value type %s but set type %s", des, typ.ResolvedType()))
-				}
-				typedExprs[expr.i] = typ
-			}
-
-			for _, expr := range placeholderExprs {
-				des := p.getAt(expr.i)
-				typ, err := expr.e.TypeCheck(ctx, des)
-				if err != nil {
-					return true, nil, err
-				}
-				typedExprs[expr.i] = typ
-			}
-			return true, o, nil
-		default:
-			return false, nil, nil
-		}
-	}
 	// At this point, all remaining overload candidates accept the argument list,
 	// so we begin checking for a single remaining candidate implementation to choose.
 	// In case there is more than one candidate remaining, the following code uses
 	// heuristics to find a most preferable candidate.
-	if ok, fn, err := checkReturn(); ok {
-		return typedExprs, fn, err
+	var ok bool
+	var fn overloadImpl
+	var err error
+	if s, ok, fn, err = checkReturn(ctx, s); ok {
+		return s.typedExprs, fn, err
 	}
 
 	// The first heuristic is to prefer candidates that return the desired type.
 	if desired != TypeAny {
-		filterOverloads(func(o overloadImpl) bool {
-			// For now, we only filter on the return type for overloads with
-			// fixed return types. This could be improved, but is not currently
-			// critical because we have no cases of functions with multiple
-			// overloads that do not all expose fixedReturnTypes.
-			if t := o.returnType()(nil); t != unknownReturnType {
-				return t.Equivalent(desired)
-			}
-			return true
-		})
-		if ok, fn, err := checkReturn(); ok {
-			return typedExprs, fn, err
+		s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+			func(o overloadImpl) bool {
+				// For now, we only filter on the return type for overloads with
+				// fixed return types. This could be improved, but is not currently
+				// critical because we have no cases of functions with multiple
+				// overloads that do not all expose fixedReturnTypes.
+				if t := o.returnType()(nil); t != unknownReturnType {
+					return t.Equivalent(desired)
+				}
+				return true
+			})
+		if s, ok, fn, err = checkReturn(ctx, s); ok {
+			return s.typedExprs, fn, err
 		}
 	}
 
 	var homogeneousTyp Type
-	if len(resolvableExprs) > 0 {
-		homogeneousTyp = typedExprs[resolvableExprs[0].i].ResolvedType()
-		for _, resExprs := range resolvableExprs[1:] {
-			if !homogeneousTyp.Equivalent(typedExprs[resExprs.i].ResolvedType()) {
+	if len(s.resolvableIdxs) > 0 {
+		homogeneousTyp = s.typedExprs[s.resolvableIdxs[0]].ResolvedType()
+		for _, i := range s.resolvableIdxs[1:] {
+			if !homogeneousTyp.Equivalent(s.typedExprs[i].ResolvedType()) {
 				homogeneousTyp = nil
 				break
 			}
 		}
 	}
 
-	if len(constExprs) > 0 {
-		before := overloads
+	if len(s.constIdxs) > 0 {
+		before := s.overloadIdxs
 
 		// The second heuristic is to prefer candidates where all numeric constants can become
 		// a homogeneous type, if all resolvable expressions became one. This is only possible
 		// resolvable expressions were resolved homogeneously up to this point.
 		if homogeneousTyp != nil {
 			all := true
-			for _, expr := range constExprs {
-				if !canConstantBecome(expr.e.(Constant), homogeneousTyp) {
+			for _, i := range s.constIdxs {
+				if !canConstantBecome(exprs[i].(Constant), homogeneousTyp) {
 					all = false
 					break
 				}
 			}
 			if all {
-				for _, expr := range constExprs {
-					filterOverloads(func(o overloadImpl) bool {
-						return o.params().getAt(expr.i).Equivalent(homogeneousTyp)
-					})
+				for _, i := range s.constIdxs {
+					s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+						func(o overloadImpl) bool {
+							return o.params().getAt(i).Equivalent(homogeneousTyp)
+						})
 				}
 			}
 		}
-		if len(overloads) == 1 {
-			if ok, fn, err := checkReturn(); ok {
-				return typedExprs, fn, err
+		if len(s.overloadIdxs) == 1 {
+			if s, ok, fn, err = checkReturn(ctx, s); ok {
+				return s.typedExprs, fn, err
 			}
 		}
 		// Restore the expressions if this did not work.
-		overloads = before
+		s.overloadIdxs = before
 
 		// The third heuristic is to prefer candidates where all numeric constants can become
 		// their "natural"" types.
-		for _, expr := range constExprs {
-			natural := naturalConstantType(expr.e.(Constant))
+		for _, i := range s.constIdxs {
+			natural := naturalConstantType(exprs[i].(Constant))
 			if natural != nil {
-				filterOverloads(func(o overloadImpl) bool {
-					return o.params().getAt(expr.i).Equivalent(natural)
-				})
+				s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+					func(o overloadImpl) bool {
+						return o.params().getAt(i).Equivalent(natural)
+					})
 			}
 		}
-		if len(overloads) == 1 {
-			if ok, fn, err := checkReturn(); ok {
-				return typedExprs, fn, err
+		if len(s.overloadIdxs) == 1 {
+			if s, ok, fn, err = checkReturn(ctx, s); ok {
+				return s.typedExprs, fn, err
 			}
 		}
 		// Restore the expressions if this did not work.
-		overloads = before
+		s.overloadIdxs = before
 
 		// The fourth heuristic is to prefer candidates that accepts the "best" mutual
 		// type in the resolvable type set of all numeric constants.
-		if bestConstType, ok := commonConstantType(constExprs); ok {
-			for _, expr := range constExprs {
-				filterOverloads(func(o overloadImpl) bool {
-					return o.params().getAt(expr.i).Equivalent(bestConstType)
-				})
+		var bestConstType Type
+		if bestConstType, ok = commonConstantType(s.exprs, s.constIdxs); ok {
+			for _, i := range s.constIdxs {
+				s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+					func(o overloadImpl) bool {
+						return o.params().getAt(i).Equivalent(bestConstType)
+					})
 			}
-			if ok, fn, err := checkReturn(); ok {
-				return typedExprs, fn, err
+			if s, ok, fn, err = checkReturn(ctx, s); ok {
+				return s.typedExprs, fn, err
 			}
 			if homogeneousTyp != nil {
 				if !homogeneousTyp.Equivalent(bestConstType) {
@@ -505,29 +455,111 @@ func typeCheckOverloadedExprs(
 	// The fifth heuristic is to prefer candidates where all placeholders can be given the same type
 	// as all numeric constants and resolvable expressions. This is only possible if all numeric
 	// constants and resolvable expressions were resolved homogeneously up to this point.
-	if homogeneousTyp != nil && len(placeholderExprs) > 0 {
-		for _, expr := range placeholderExprs {
-			filterOverloads(func(o overloadImpl) bool {
-				return o.params().getAt(expr.i).Equivalent(homogeneousTyp)
-			})
+	if homogeneousTyp != nil && len(s.placeholderIdxs) > 0 {
+		for _, i := range s.placeholderIdxs {
+			s.overloadIdxs = filterOverloads(s.overloads, s.overloadIdxs,
+				func(o overloadImpl) bool {
+					return o.params().getAt(i).Equivalent(homogeneousTyp)
+				})
 		}
-		if ok, fn, err := checkReturn(); ok {
-			return typedExprs, fn, err
+		if s, ok, fn, err = checkReturn(ctx, s); ok {
+			return s.typedExprs, fn, err
 		}
 	}
 
-	if err := defaultTypeCheck(len(overloads) > 0); err != nil {
+	if s, err = defaultTypeCheck(ctx, s, len(s.overloadIdxs) > 0); err != nil {
 		return nil, nil, err
 	}
 
 	var preferred overloadImpl
-	for _, c := range overloads {
+	for _, i := range s.overloadIdxs {
+		c := s.overloads[i]
 		if c.preferred() {
 			if preferred != nil {
-				return typedExprs, nil, nil
+				return s.typedExprs, nil, nil
 			}
 			preferred = c
 		}
 	}
-	return typedExprs, preferred, nil
+	return s.typedExprs, preferred, nil
+}
+
+// filterOverloads filters overloads which return false from the provided
+// closure.
+func filterOverloads(
+	overloads []overloadImpl, overloadIdxs []uint8, fn func(overloadImpl) bool,
+) []uint8 {
+	for i := 0; i < len(overloadIdxs); {
+		if fn(overloads[overloadIdxs[i]]) {
+			i++
+		} else {
+			overloadIdxs[i], overloadIdxs[len(overloadIdxs)-1] = overloadIdxs[len(overloadIdxs)-1], overloadIdxs[i]
+			overloadIdxs = overloadIdxs[:len(overloadIdxs)-1]
+		}
+	}
+	return overloadIdxs
+}
+
+// defaultTypeCheck type checks the constant and placeholder expressions without a preference
+// and adds them to the type checked slice.
+func defaultTypeCheck(
+	ctx *SemaContext, s typeCheckOverloadState, errorOnPlaceholders bool,
+) (typeCheckOverloadState, error) {
+	for _, i := range s.constIdxs {
+		typ, err := s.exprs[i].TypeCheck(ctx, TypeAny)
+		if err != nil {
+			return s, fmt.Errorf("error type checking constant value: %v", err)
+		}
+		s.typedExprs[i] = typ
+	}
+	for _, i := range s.placeholderIdxs {
+		if errorOnPlaceholders {
+			_, err := s.exprs[i].TypeCheck(ctx, TypeAny)
+			return s, err
+		}
+		// If we dont want to error on args, avoid type checking them without a desired type.
+		s.typedExprs[i] = StripParens(s.exprs[i]).(*Placeholder)
+	}
+	return s, nil
+}
+
+// checkReturn checks the number of remaining overloaded function
+// implementations, returning if we should stop overload resolution, along with
+// a nullable overloadImpl to return if we should stop overload resolution.
+func checkReturn(
+	ctx *SemaContext, s typeCheckOverloadState,
+) (typeCheckOverloadState, bool, overloadImpl, error) {
+	switch len(s.overloadIdxs) {
+	case 0:
+		var err error
+		if s, err = defaultTypeCheck(ctx, s, false); err != nil {
+			return s, true, nil, err
+		}
+		return s, true, nil, nil
+	case 1:
+		o := s.overloads[s.overloadIdxs[0]]
+		p := o.params()
+		for _, i := range s.constIdxs {
+			des := p.getAt(i)
+			typ, err := s.exprs[i].TypeCheck(ctx, des)
+			if err != nil {
+				return s, true, nil, fmt.Errorf("error type checking constant value: %v", err)
+			} else if des != nil && !typ.ResolvedType().Equivalent(des) {
+				panic(fmt.Errorf("desired constant value type %s but set type %s", des, typ.ResolvedType()))
+			}
+			s.typedExprs[i] = typ
+		}
+
+		for _, i := range s.placeholderIdxs {
+			des := p.getAt(i)
+			typ, err := s.exprs[i].TypeCheck(ctx, des)
+			if err != nil {
+				return s, true, nil, err
+			}
+			s.typedExprs[i] = typ
+		}
+		return s, true, o, nil
+	default:
+		return s, false, nil, nil
+	}
 }

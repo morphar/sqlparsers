@@ -1,4 +1,4 @@
-// Copyright 2015 The Cockroach Authors.
+// Copyright 2017 The Cockroach Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,29 +12,36 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 //
-// Author: Peter Mattis (peter@cockroachlabs.com)
-
-// This code was derived from https://github.com/youtube/vitess.
-//
-// Copyright 2012, Google Inc. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file
+// Author: Andrew Dona-Couch (andrew@cockroachlabs.com)
 
 package parser
 
 import "bytes"
 
-// Delete represents a DELETE statement.
-type Delete struct {
-	Table     TableExpr
-	Where     *Where
-	Returning ReturningClause
+// Discard represents a DISCARD statement.
+type Discard struct {
+	Mode DiscardMode
 }
 
+var _ Statement = &Discard{}
+
+// DiscardMode is an enum of the various discard modes.
+type DiscardMode int
+
+const (
+	// DiscardModeAll represents a DISCARD ALL statement.
+	DiscardModeAll DiscardMode = iota
+)
+
 // Format implements the NodeFormatter interface.
-func (node *Delete) Format(buf *bytes.Buffer, f FmtFlags) {
-	buf.WriteString("DELETE FROM ")
-	FormatNode(buf, f, node.Table)
-	FormatNode(buf, f, node.Where)
-	FormatNode(buf, f, node.Returning)
+func (node *Discard) Format(buf *bytes.Buffer, f FmtFlags) {
+	switch node.Mode {
+	case DiscardModeAll:
+		buf.WriteString("DISCARD ALL")
+	}
+}
+
+// String implements the Statement interface.
+func (node *Discard) String() string {
+	return AsString(node)
 }
