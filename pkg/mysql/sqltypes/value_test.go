@@ -100,6 +100,9 @@ func TestBuildValue(t *testing.T) {
 	}, {
 		in:  testVal(VarBinary, "a"),
 		out: testVal(VarBinary, "a"),
+	}, {
+		in:  BytesBindVariable([]byte("a")),
+		out: testVal(VarBinary, "a"),
 	}}
 	for _, tcase := range testcases {
 		v, err := BuildValue(tcase.in)
@@ -150,10 +153,7 @@ func TestBuildConverted(t *testing.T) {
 		out: testVal(Float32, "123"),
 	}, {
 		typ: Int64,
-		val: &querypb.BindVariable{
-			Type:  querypb.Type_VARCHAR,
-			Value: []byte("123"),
-		},
+		val: StringBindVariable("123"),
 		out: testVal(Int64, "123"),
 	}}
 	for _, tcase := range testcases {
@@ -167,13 +167,6 @@ func TestBuildConverted(t *testing.T) {
 		}
 	}
 }
-
-const (
-	InvalidNeg = "-9223372036854775809"
-	MinNeg     = "-9223372036854775808"
-	MinPos     = "18446744073709551615"
-	InvalidPos = "18446744073709551616"
-)
 
 func TestValueFromBytes(t *testing.T) {
 	testcases := []struct {
@@ -316,7 +309,7 @@ func TestValueFromBytes(t *testing.T) {
 	}, {
 		inType: Tuple,
 		inVal:  "a",
-		outErr: "not allowed",
+		outErr: "type: TUPLE is invalid",
 	}}
 	for _, tcase := range testcases {
 		v, err := ValueFromBytes(tcase.inType, []byte(tcase.inVal))
@@ -409,6 +402,18 @@ func TestAccessors(t *testing.T) {
 	}
 	if v.IsBinary() {
 		t.Error("v.IsBinary: true, want false")
+	}
+}
+
+func TestBytes(t *testing.T) {
+	for _, v := range []Value{
+		NULL,
+		testVal(Int64, "1"),
+		testVal(Int64, "12"),
+	} {
+		if b := v.Bytes(); bytes.Compare(b, v.Raw()) != 0 {
+			t.Errorf("v1.Bytes: %s, want %s", b, v.Raw())
+		}
 	}
 }
 

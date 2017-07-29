@@ -25,6 +25,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/morphar/sqlparsers/pkg/mysql/bytes2"
+	"github.com/morphar/sqlparsers/pkg/mysql/hack"
+
 	querypb "github.com/morphar/sqlparsers/pkg/mysql/query"
 )
 
@@ -42,7 +45,6 @@ var (
 // So, we don't expect the write operations to fail.
 type BinWriter interface {
 	Write([]byte) (int, error)
-	WriteByte(byte) error
 }
 
 // Value can store any SQL value. If the value represents
@@ -139,6 +141,9 @@ func BuildConverted(typ querypb.Type, goval interface{}) (v Value, err error) {
 			}
 		}
 	}
+	// TODO(sougou): We should not call BuildValue here, because it
+	// may build a Value of a different type than requested. Things
+	// work for now because the value is eventually just passed through.
 	return BuildValue(goval)
 }
 
@@ -146,6 +151,9 @@ func BuildConverted(typ querypb.Type, goval interface{}) (v Value, err error) {
 // matches the requested type. If type is an integral it's converted to
 // a cannonical form. Otherwise, the original representation is preserved.
 func ValueFromBytes(typ querypb.Type, val []byte) (v Value, err error) {
+	if !IsTypeValid(typ) {
+		return NULL, fmt.Errorf("type: %v is invalid", typ)
+	}
 	switch {
 	case IsSigned(typ):
 		signed, err := strconv.ParseInt(string(val), 0, 64)
@@ -159,8 +167,6 @@ func ValueFromBytes(typ querypb.Type, val []byte) (v Value, err error) {
 			return NULL, err
 		}
 		v = MakeTrusted(typ, strconv.AppendUint(nil, unsigned, 10))
-	case typ == Tuple:
-		return NULL, errors.New("tuple not allowed for ValueFromBytes")
 	case IsFloat(typ) || typ == Decimal:
 		_, err := strconv.ParseFloat(string(val), 64)
 		if err != nil {
@@ -200,6 +206,15 @@ func (v Value) Raw() []byte {
 	return v.val
 }
 
+// Bytes returns a copy of the raw data. All types are currently implemented as []byte.
+// Use this function instead of Raw if you can't be sure about maintaining the read-only
+// requirements of the bytes.
+func (v Value) Bytes() []byte {
+	out := make([]byte, len(v.val))
+	copy(out, v.val)
+	return out
+}
+
 // Len returns the length.
 func (v Value) Len() int {
 	return len(v.val)
@@ -207,7 +222,7 @@ func (v Value) Len() int {
 
 // String returns the raw value as a string.
 func (v Value) String() string {
-	return string(v.val)
+	return hack.String(v.val)
 }
 
 // ToNative converts Value to a native go type.
@@ -246,18 +261,24 @@ func (v Value) ToProtoValue() *querypb.Value {
 
 // ParseInt64 will parse a Value into an int64. It does
 // not check the type.
+// TODO(sougou): deprecate this function in favor of a
+// more type-aware implemention in arithmetic.
 func (v Value) ParseInt64() (val int64, err error) {
 	return strconv.ParseInt(v.String(), 10, 64)
 }
 
 // ParseUint64 will parse a Value into a uint64. It does
 // not check the type.
+// TODO(sougou): deprecate this function in favor of a
+// more type-aware implemention in arithmetic.
 func (v Value) ParseUint64() (val uint64, err error) {
 	return strconv.ParseUint(v.String(), 10, 64)
 }
 
 // ParseFloat64 will parse a Value into an float64. It does
 // not check the type.
+// TODO(sougou): deprecate this function in favor of a
+// more type-aware implemention in arithmetic.
 func (v Value) ParseFloat64() (val float64, err error) {
 	return strconv.ParseFloat(v.String(), 64)
 }
@@ -268,11 +289,11 @@ func (v Value) EncodeSQL(b BinWriter) {
 	_ = v.ToNative()
 	switch {
 	case v.typ == Null:
-		writebytes(nullstr, b)
+		b.Write(nullstr)
 	case IsQuoted(v.typ):
 		encodeBytesSQL(v.val, b)
 	default:
-		writebytes(v.val, b)
+		b.Write(v.val)
 	}
 }
 
@@ -282,11 +303,11 @@ func (v Value) EncodeASCII(b BinWriter) {
 	_ = v.ToNative()
 	switch {
 	case v.typ == Null:
-		writebytes(nullstr, b)
+		b.Write(nullstr)
 	case IsQuoted(v.typ):
 		encodeBytesASCII(v.val, b)
 	default:
-		writebytes(v.val, b)
+		b.Write(v.val)
 	}
 }
 
@@ -374,40 +395,28 @@ func (v *Value) UnmarshalJSON(b []byte) error {
 }
 
 func encodeBytesSQL(val []byte, b BinWriter) {
-	writebyte('\'', b)
+	buf := &bytes2.Buffer{}
+	buf.WriteByte('\'')
 	for _, ch := range val {
 		if encodedChar := SQLEncodeMap[ch]; encodedChar == DontEscape {
-			writebyte(ch, b)
+			buf.WriteByte(ch)
 		} else {
-			writebyte('\\', b)
-			writebyte(encodedChar, b)
+			buf.WriteByte('\\')
+			buf.WriteByte(encodedChar)
 		}
 	}
-	writebyte('\'', b)
+	buf.WriteByte('\'')
+	b.Write(buf.Bytes())
 }
 
 func encodeBytesASCII(val []byte, b BinWriter) {
-	writebyte('\'', b)
-	encoder := base64.NewEncoder(base64.StdEncoding, b)
+	buf := &bytes2.Buffer{}
+	buf.WriteByte('\'')
+	encoder := base64.NewEncoder(base64.StdEncoding, buf)
 	encoder.Write(val)
 	encoder.Close()
-	writebyte('\'', b)
-}
-
-func writebyte(c byte, b BinWriter) {
-	if err := b.WriteByte(c); err != nil {
-		panic(err)
-	}
-}
-
-func writebytes(val []byte, b BinWriter) {
-	n, err := b.Write(val)
-	if err != nil {
-		panic(err)
-	}
-	if n != len(val) {
-		panic(errors.New("short write"))
-	}
+	buf.WriteByte('\'')
+	b.Write(buf.Bytes())
 }
 
 // SQLEncodeMap specifies how to escape binary data with '\'.

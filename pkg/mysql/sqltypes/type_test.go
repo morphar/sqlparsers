@@ -170,6 +170,9 @@ func TestIsFunctions(t *testing.T) {
 	if !IsBinary(Binary) {
 		t.Error("Char: !IsBinary, must be true")
 	}
+	if !isNumber(Int64) {
+		t.Error("Int64: !isNumber, must be true")
+	}
 }
 
 func TestTypeToMySQL(t *testing.T) {
@@ -330,5 +333,14 @@ func TestTypeError(t *testing.T) {
 	want := "unsupported type: 15"
 	if err == nil || err.Error() != want {
 		t.Errorf("MySQLToType: %v, want %s", err, want)
+	}
+}
+
+func TestIsTypeValid(t *testing.T) {
+	if !IsTypeValid(Int64) {
+		t.Errorf("IsTypeValid(%v): false, want true", Int64)
+	}
+	if IsTypeValid(querypb.Type(1)) {
+		t.Errorf("IsTypeValid(%v): true, want false", querypb.Type(1))
 	}
 }

@@ -754,13 +754,22 @@ func TestValid(t *testing.T) {
 		output: "use `ks:-80@master`",
 	}, {
 		input:  "describe foobar",
-		output: "other",
+		output: "otherread",
+	}, {
+		input:  "desc foobar",
+		output: "otherread",
 	}, {
 		input:  "explain foobar",
-		output: "other",
+		output: "otherread",
 	}, {
 		input:  "truncate foo",
-		output: "other",
+		output: "otheradmin",
+	}, {
+		input:  "repair foo",
+		output: "otheradmin",
+	}, {
+		input:  "optimize foo",
+		output: "otheradmin",
 	}, {
 		input: "select /* EQ true */ 1 from t where a = true",
 	}, {
@@ -1250,6 +1259,10 @@ func TestErrors(t *testing.T) {
 		}
 	}
 }
+
+// Benchmark run on 6/23/17, prior to improvements:
+// BenchmarkParse1-4         100000             16334 ns/op
+// BenchmarkParse2-4          30000             44121 ns/op
 
 func BenchmarkParse1(b *testing.B) {
 	sql := "select 'abcd', 20, 30.0, eid from a where 1=eid and name='3'"

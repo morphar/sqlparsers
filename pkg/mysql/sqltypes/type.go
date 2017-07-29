@@ -74,6 +74,11 @@ func IsBinary(t querypb.Type) bool {
 	return int(t)&flagIsBinary == flagIsBinary
 }
 
+// isNumber returns true if the type is any type of number.
+func isNumber(t querypb.Type) bool {
+	return IsIntegral(t) || IsFloat(t) || t == Decimal
+}
+
 // Vitess data types. These are idiomatically
 // named synonyms for the querypb.Type values.
 const (
@@ -108,10 +113,6 @@ const (
 	Tuple     = querypb.Type_TUPLE
 	Geometry  = querypb.Type_GEOMETRY
 	TypeJSON  = querypb.Type_JSON
-
-	// TypeSQL is exposed here in the code, but not in the proto file.
-	// This is an internal type used for binlogs only.
-	TypeSQL = querypb.Type(245)
 )
 
 // bit-shift the mysql flags by two byte so we
@@ -257,4 +258,13 @@ var typeToMySQL = map[querypb.Type]struct {
 func TypeToMySQL(typ querypb.Type) (mysqlType, flags int64) {
 	val := typeToMySQL[typ]
 	return val.typ, val.flags
+}
+
+// IsTypeValid returns true if the type is valid.
+func IsTypeValid(typ querypb.Type) bool {
+	if _, ok := typeToMySQL[typ]; ok {
+		return true
+	}
+
+	return false
 }

@@ -460,25 +460,29 @@ use_statement:
   }
 
 other_statement:
-  DESCRIBE force_eof
+  DESC force_eof
   {
-    $$ = &Other{}
+    $$ = &OtherRead{}
+  }
+| DESCRIBE force_eof
+  {
+    $$ = &OtherRead{}
   }
 | EXPLAIN force_eof
   {
-    $$ = &Other{}
+    $$ = &OtherRead{}
   }
 | REPAIR force_eof
   {
-    $$ = &Other{}
+    $$ = &OtherAdmin{}
   }
 | OPTIMIZE force_eof
   {
-    $$ = &Other{}
+    $$ = &OtherAdmin{}
   }
 | TRUNCATE force_eof
   {
-    $$ = &Other{}
+    $$ = &OtherAdmin{}
   }
 
 comment_opt:
