@@ -611,21 +611,31 @@ func init() {
 	},
 	OrderBy: parser.OrderBy{
 		&parser.Order{
+			OrderType: 0,
 			Expr: parser.UnresolvedName{
 				parser.Name("author"),
 
 				parser.Name("fname"),
 			},
 			Direction: 2,
+			Table: parser.NormalizableTableName{
+				TableNameReference: nil,
+			},
+			Index: parser.Name(""),
 		},
 
 		&parser.Order{
+			OrderType: 0,
 			Expr: parser.UnresolvedName{
 				parser.Name("author"),
 
 				parser.Name("lname"),
 			},
 			Direction: 2,
+			Table: parser.NormalizableTableName{
+				TableNameReference: nil,
+			},
+			Index: parser.Name(""),
 		},
 	},
 	Limit: &parser.Limit{

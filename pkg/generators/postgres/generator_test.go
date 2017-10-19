@@ -22,7 +22,7 @@ var (
 `
 )
 
-func TestCheckParse(t *testing.T) {
+func TestSelectParse(t *testing.T) {
 	for i, SelectSQL := range SelectSQLs {
 		stmtList, err := parser.Parse(SelectSQL)
 		if err != nil || len(stmtList) == 0 {
@@ -40,6 +40,29 @@ func TestCheckParse(t *testing.T) {
 		generatedSQL := stmt.String()
 		if SelectSQL != generatedSQL {
 			t.Errorf(errStr, i, generatedSQL, i, SelectSQL)
+		}
+
+	}
+}
+
+func TestInsertParse(t *testing.T) {
+	for i, InsertSQL := range InsertSQLs {
+		stmtList, err := parser.Parse(InsertSQL)
+		if err != nil || len(stmtList) == 0 {
+			t.Errorf("\nCaught an error from parser: %q", err)
+		}
+		stmt := stmtList[0]
+
+		// Check that we can parse out to an expected format
+		parsedQuery := Parse(stmt)
+		if parsedQuery != InsertQueries[i] {
+			t.Errorf(errStr, i, parsedQuery, i, InsertQueries[i])
+		}
+
+		// Check that we can re-generate the original inserts
+		generatedSQL := stmt.String()
+		if InsertSQL != generatedSQL {
+			t.Errorf(errStr, i, generatedSQL, i, InsertSQL)
 		}
 
 	}
