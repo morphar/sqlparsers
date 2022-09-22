@@ -248,7 +248,7 @@ collationName: ID ;
 columnName: objectName
 | '$ACTION' ;
 
-columnNameQualified: (tableName '.')? columnName ;
+columnNameQualified: (tableNameQualified '.')? columnName ;
 
 columnNameList: columnName (',' columnName)* ;
 
@@ -1266,7 +1266,6 @@ namedFunctionList: namedFunction ('.' namedFunction)* ;
 
 value
 : functionCall ('.' namedFunctionList)?
-| schemaName '.' columnNameQualified
 | columnNameQualified
 | variableName
 | expressionParens ('.' namedFunctionList)?

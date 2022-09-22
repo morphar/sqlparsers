@@ -362,8 +362,8 @@ type ColumnName struct {
 	ObjectName *ObjectName `@@ | '$ACTION'`
 }
 type ColumnNameQualified struct {
-	TableName  *TableName  `( @@ '.' )?`
-	ColumnName *ColumnName `@@`
+	TableNameQualified *TableNameQualified `( @@ '.' )?`
+	ColumnName         *ColumnName         `@@`
 }
 type ColumnNameList struct {
 	ColumnName []*ColumnName `@@ ( ',' @@ )*`
@@ -1869,22 +1869,20 @@ type NamedFunctionList struct {
 	NamedFunction []*NamedFunction `@@ ( '.' @@ )*`
 }
 type Value struct {
-	FunctionCall         *FunctionCall        `@@`
-	NamedFunctionList    *NamedFunctionList   `( '.' @@ )?`
-	SchemaName           *SchemaName          `| @@`
-	ColumnNameQualified  *ColumnNameQualified `'.' @@`
-	ColumnNameQualified2 *ColumnNameQualified `| @@`
-	VariableName         *VariableName        `| @@`
-	ExpressionParens     *ExpressionParens    `| @@`
-	NamedFunctionList2   *NamedFunctionList   `( '.' @@ )?`
-	TableName            *TableName           `| @@`
-	NamedFunctionList3   *NamedFunctionList   `'.' @@`
-	TableName2           *TableName           `| @@`
-	ColumnName           *ColumnName          `'.' @@`
-	NamedFunctionList4   *NamedFunctionList   `'.' @@`
-	FunctionCall2        *FunctionCall        `| @@`
-	RankingArguments     *RankingArguments    `'OVER' '(' @@ ')'`
-	SystemVariableName   *SystemVariableName  `| @@`
+	FunctionCall        *FunctionCall        `@@`
+	NamedFunctionList   *NamedFunctionList   `( '.' @@ )?`
+	ColumnNameQualified *ColumnNameQualified `| @@`
+	VariableName        *VariableName        `| @@`
+	ExpressionParens    *ExpressionParens    `| @@`
+	NamedFunctionList2  *NamedFunctionList   `( '.' @@ )?`
+	TableName           *TableName           `| @@`
+	NamedFunctionList3  *NamedFunctionList   `'.' @@`
+	TableName2          *TableName           `| @@`
+	ColumnName          *ColumnName          `'.' @@`
+	NamedFunctionList4  *NamedFunctionList   `'.' @@`
+	FunctionCall2       *FunctionCall        `| @@`
+	RankingArguments    *RankingArguments    `'OVER' '(' @@ ')'`
+	SystemVariableName  *SystemVariableName  `| @@`
 }
 type ExpressionParens struct {
 	SelectQuery *SelectQuery `( 'ANY' | 'ALL' )? '(' ( @@`
