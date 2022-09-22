@@ -83,6 +83,14 @@ func TestExe(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%v", r)
+					t.Logf(repr.String(twts))
+					repr.Print(res)
+				}
+			}()
+
 			rdr.Seek(0, 0)
 			err = Parser.Parse(m, rdr, res)
 			if err != nil {
