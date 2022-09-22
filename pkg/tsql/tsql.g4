@@ -958,7 +958,7 @@ queryHintOptionList: queryHintOption (',' queryHintOption)* ;
 insertStatement: queryOptions 'INSERT' optionalTop optionalInto destinationRowset 
 ( 'DEFAULT' 'VALUES' queryHint 
 | columnNameGroup outputClause 
-    ( 'VALUES' '(' expressionList ')' queryHint
+    ( 'VALUES' '(' expressionList ')' (',' '(' expressionList ')')* queryHint
     | selectQuery queryHint
     | executeStatement queryHint )
 );

@@ -1391,8 +1391,8 @@ type InsertStatement struct {
 	QueryHint         *QueryHint         `( 'DEFAULT' 'VALUES' @@?`
 	ColumnNameGroup   *ColumnNameGroup   `| @@?`
 	OutputClause      *OutputClause      `@@?`
-	ExpressionList    *ExpressionList    `( 'VALUES' '(' @@`
-	QueryHint2        *QueryHint         `')' @@?`
+	ExpressionList    []*ExpressionList  `( 'VALUES' '(' @@ ')' ( ',' '(' @@ ')' )*`
+	QueryHint2        *QueryHint         `@@?`
 	SelectQuery       *SelectQuery       `| @@`
 	QueryHint3        *QueryHint         `@@?`
 	ExecuteStatement  *ExecuteStatement  `| @@`
