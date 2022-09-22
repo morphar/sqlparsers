@@ -3,7 +3,6 @@ module github.com/morphar/sqlparsers
 go 1.16
 
 require (
-	github.com/alecthomas/kong v0.6.1
 	github.com/alecthomas/participle/v2 v2.0.0-alpha6.0.20210727051932-9fa3c2e2a08f
 	github.com/alecthomas/repr v0.1.0
 	github.com/biogo/store v0.0.0-20201120204734-aad293a2328f
@@ -17,7 +16,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/satori/go.uuid v1.2.0
-	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/net v0.0.0-20220921203646-d300de134e69

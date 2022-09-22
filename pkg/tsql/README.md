@@ -6,7 +6,7 @@ To regenerate the tsql parser, execute:
 antlr2participle tsql.g4
 ```
 
-The antlr2participle tool is experimental and lives in `internal`.
+The antlr2participle tool is experimental.
 
 ## Not Supported
 
