@@ -1421,18 +1421,14 @@ type MergeWhenMatchedList struct {
 	MergeWhenMatched []*MergeWhenMatched `@@+`
 }
 type MergeWhenMatched struct {
-	Predicate        *Predicate       `'WHEN' 'MATCHED' 'AND' @@`
+	Predicate        *Predicate       `'WHEN' 'MATCHED' ( 'AND' @@ )?`
 	MergeMatched     *MergeMatched    `'THEN' @@`
-	MergeMatched2    *MergeMatched    `| 'WHEN' 'MATCHED' 'THEN' @@`
-	Predicate2       *Predicate       `| 'WHEN' 'NOT' 'MATCHED' 'BY' 'TARGET' 'AND' @@`
+	Predicate2       *Predicate       `| 'WHEN' 'NOT' 'MATCHED' 'BY' 'TARGET' ( 'AND' @@ )?`
 	MergeNotMatched  *MergeNotMatched `'THEN' @@`
-	MergeNotMatched2 *MergeNotMatched `| 'WHEN' 'NOT' 'MATCHED' 'BY' 'TARGET' 'THEN' @@`
-	Predicate3       *Predicate       `| 'WHEN' 'NOT' 'MATCHED' 'AND' @@`
-	MergeNotMatched3 *MergeNotMatched `'THEN' @@`
-	MergeNotMatched4 *MergeNotMatched `| 'WHEN' 'NOT' 'MATCHED' 'THEN' @@`
-	Predicate4       *Predicate       `| 'WHEN' 'NOT' 'MATCHED' 'BY' 'SOURCE' 'AND' @@`
-	MergeMatched3    *MergeMatched    `'THEN' @@`
-	MergeMatched4    *MergeMatched    `| 'WHEN' 'NOT' 'MATCHED' 'BY' 'SOURCE' 'THEN' @@`
+	Predicate3       *Predicate       `| 'WHEN' 'NOT' 'MATCHED' ( 'AND' @@ )?`
+	MergeNotMatched2 *MergeNotMatched `'THEN' @@`
+	Predicate4       *Predicate       `| 'WHEN' 'NOT' 'MATCHED' 'BY' 'SOURCE' ( 'AND' @@ )?`
+	MergeMatched2    *MergeMatched    `'THEN' @@`
 }
 type MergeMatched struct {
 	UpdateItemList *UpdateItemList `'UPDATE' 'SET' @@ | 'DELETE'`

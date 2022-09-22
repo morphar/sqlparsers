@@ -972,14 +972,10 @@ mergeStatement: queryOptions 'MERGE' optionalTop optionalInto destinationRowset 
 
 mergeWhenMatchedList: mergeWhenMatched+ ;
 
-mergeWhenMatched: 'WHEN' 'MATCHED' 'AND' predicate 'THEN' mergeMatched
-| 'WHEN' 'MATCHED' 'THEN' mergeMatched
-| 'WHEN' 'NOT' 'MATCHED' 'BY' 'TARGET' 'AND' predicate 'THEN' mergeNotMatched
-| 'WHEN' 'NOT' 'MATCHED' 'BY' 'TARGET' 'THEN' mergeNotMatched
-| 'WHEN' 'NOT' 'MATCHED' 'AND' predicate 'THEN' mergeNotMatched
-| 'WHEN' 'NOT' 'MATCHED' 'THEN' mergeNotMatched
-| 'WHEN' 'NOT' 'MATCHED' 'BY' 'SOURCE' 'AND' predicate 'THEN' mergeMatched
-| 'WHEN' 'NOT' 'MATCHED' 'BY' 'SOURCE' 'THEN' mergeMatched ;
+mergeWhenMatched: 'WHEN' 'MATCHED' ('AND' predicate)? 'THEN' mergeMatched
+| 'WHEN' 'NOT' 'MATCHED' 'BY' 'TARGET' ('AND' predicate)? 'THEN' mergeNotMatched
+| 'WHEN' 'NOT' 'MATCHED' ('AND' predicate)? 'THEN' mergeNotMatched
+| 'WHEN' 'NOT' 'MATCHED' 'BY' 'SOURCE' ('AND' predicate)? 'THEN' mergeMatched;
 
 mergeMatched: 'UPDATE' 'SET' updateItemList
 | 'DELETE' ;
