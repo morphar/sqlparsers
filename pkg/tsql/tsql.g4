@@ -248,7 +248,9 @@ collationName: ID ;
 columnName: objectName
 | '$ACTION' ;
 
-columnNameQualified: (tableNameQualified '.')? columnName ;
+columnNameFullyQualified: (tableNameQualified '.')? columnName ;
+
+columnNameQualified: (tableName '.')? columnName ;
 
 columnNameList: columnName (',' columnName)* ;
 
@@ -989,13 +991,10 @@ updateStatement: queryOptions 'UPDATE' optionalTop destinationRowset 'SET' updat
 
 updateItemList: updateItem (',' updateItem)* ;
 
-updateItem: columnNameQualified '=' expression
+updateItem: columnNameFullyQualified '=' expression
 | columnNameQualified '=' 'DEFAULT'
-| variableName '=' expression
-| variableName '=' columnNameQualified '=' expression
-| variableName '.' namedFunctionList
-| tableName '.' namedFunctionList
-| tableName '.' columnName '.' namedFunctionList ;
+| variableName '=' (columnNameQualified '=')? expression
+| ( variableName | tableName (columnName '.')? ) '.' namedFunctionList;
 
 optionalFromClause: fromClause
 |  ;
@@ -1266,6 +1265,7 @@ namedFunctionList: namedFunction ('.' namedFunction)* ;
 
 value
 : functionCall ('.' namedFunctionList)?
+| schemaName '.' columnNameQualified
 | columnNameQualified
 | variableName
 | expressionParens ('.' namedFunctionList)?

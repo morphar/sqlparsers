@@ -361,9 +361,13 @@ type CollationName struct {
 type ColumnName struct {
 	ObjectName *ObjectName `@@ | '$ACTION'`
 }
-type ColumnNameQualified struct {
+type ColumnNameFullyQualified struct {
 	TableNameQualified *TableNameQualified `( @@ '.' )?`
 	ColumnName         *ColumnName         `@@`
+}
+type ColumnNameQualified struct {
+	TableName  *TableName  `( @@ '.' )?`
+	ColumnName *ColumnName `@@`
 }
 type ColumnNameList struct {
 	ColumnName []*ColumnName `@@ ( ',' @@ )*`
@@ -1452,21 +1456,16 @@ type UpdateItemList struct {
 	UpdateItem []*UpdateItem `@@ ( ',' @@ )*`
 }
 type UpdateItem struct {
-	ColumnNameQualified  *ColumnNameQualified `@@`
-	Expression           *Expression          `'=' @@`
-	ColumnNameQualified2 *ColumnNameQualified `| @@ '=' 'DEFAULT'`
-	VariableName         *VariableName        `| @@`
-	Expression2          *Expression          `'=' @@`
-	VariableName2        *VariableName        `| @@`
-	ColumnNameQualified3 *ColumnNameQualified `'=' @@`
-	Expression3          *Expression          `'=' @@`
-	VariableName3        *VariableName        `| @@`
-	NamedFunctionList    *NamedFunctionList   `'.' @@`
-	TableName            *TableName           `| @@`
-	NamedFunctionList2   *NamedFunctionList   `'.' @@`
-	TableName2           *TableName           `| @@`
-	ColumnName           *ColumnName          `'.' @@`
-	NamedFunctionList3   *NamedFunctionList   `'.' @@`
+	ColumnNameFullyQualified *ColumnNameFullyQualified `@@`
+	Expression               *Expression               `'=' @@`
+	ColumnNameQualified      *ColumnNameQualified      `| @@ '=' 'DEFAULT'`
+	VariableName             *VariableName             `| @@`
+	ColumnNameQualified2     *ColumnNameQualified      `'=' ( @@ '=' )?`
+	Expression2              *Expression               `@@`
+	VariableName2            *VariableName             `| ( @@`
+	TableName                *TableName                `| @@`
+	ColumnName               *ColumnName               `( @@ '.' )? )`
+	NamedFunctionList        *NamedFunctionList        `'.' @@`
 }
 type OptionalFromClause struct {
 	FromClause *FromClause `@@`
@@ -1869,20 +1868,22 @@ type NamedFunctionList struct {
 	NamedFunction []*NamedFunction `@@ ( '.' @@ )*`
 }
 type Value struct {
-	FunctionCall        *FunctionCall        `@@`
-	NamedFunctionList   *NamedFunctionList   `( '.' @@ )?`
-	ColumnNameQualified *ColumnNameQualified `| @@`
-	VariableName        *VariableName        `| @@`
-	ExpressionParens    *ExpressionParens    `| @@`
-	NamedFunctionList2  *NamedFunctionList   `( '.' @@ )?`
-	TableName           *TableName           `| @@`
-	NamedFunctionList3  *NamedFunctionList   `'.' @@`
-	TableName2          *TableName           `| @@`
-	ColumnName          *ColumnName          `'.' @@`
-	NamedFunctionList4  *NamedFunctionList   `'.' @@`
-	FunctionCall2       *FunctionCall        `| @@`
-	RankingArguments    *RankingArguments    `'OVER' '(' @@ ')'`
-	SystemVariableName  *SystemVariableName  `| @@`
+	FunctionCall         *FunctionCall        `@@`
+	NamedFunctionList    *NamedFunctionList   `( '.' @@ )?`
+	SchemaName           *SchemaName          `| @@`
+	ColumnNameQualified  *ColumnNameQualified `'.' @@`
+	ColumnNameQualified2 *ColumnNameQualified `| @@`
+	VariableName         *VariableName        `| @@`
+	ExpressionParens     *ExpressionParens    `| @@`
+	NamedFunctionList2   *NamedFunctionList   `( '.' @@ )?`
+	TableName            *TableName           `| @@`
+	NamedFunctionList3   *NamedFunctionList   `'.' @@`
+	TableName2           *TableName           `| @@`
+	ColumnName           *ColumnName          `'.' @@`
+	NamedFunctionList4   *NamedFunctionList   `'.' @@`
+	FunctionCall2        *FunctionCall        `| @@`
+	RankingArguments     *RankingArguments    `'OVER' '(' @@ ')'`
+	SystemVariableName   *SystemVariableName  `| @@`
 }
 type ExpressionParens struct {
 	SelectQuery *SelectQuery `( 'ANY' | 'ALL' )? '(' ( @@`
