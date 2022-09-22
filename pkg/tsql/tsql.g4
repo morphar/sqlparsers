@@ -968,7 +968,7 @@ insertStatement: queryOptions 'INSERT' optionalTop optionalInto destinationRowse
 optionalInto: 'INTO'
 |  ;
 
-mergeStatement: queryOptions 'MERGE' optionalTop optionalInto destinationRowset rowsetAlias 'USING' sourceRowset 'ON' predicate mergeWhenMatchedList outputClause queryHint ;
+mergeStatement: queryOptions 'MERGE' optionalTop optionalInto destinationRowset rowsetAlias? 'USING' sourceRowset 'ON' predicate mergeWhenMatchedList outputClause queryHint ;
 
 mergeWhenMatchedList: mergeWhenMatched+ ;
 
@@ -1049,28 +1049,28 @@ joinHint: 'MERGE'
 |  ;
 
 sourceRowset
-: '(' 'VALUES' valuesList ')' rowsetAlias
-| '(' selectQuery ')' rowsetAlias 
+: '(' 'VALUES' valuesList ')' rowsetAlias?
+| '(' selectQuery ')' rowsetAlias? 
 | schemaName '.' (
     tableName '.' (
-        schemaName '.' tableName rowsetAlias
-        | tableName rowsetAlias
-        | namedFunction rowsetAlias
+        schemaName '.' tableName rowsetAlias?
+        | tableName rowsetAlias?
+        | namedFunction rowsetAlias?
     )
-    | namedFunction rowsetAlias
+    | namedFunction rowsetAlias?
 )
-| variableName ('.' (columnName '.' namedFunction rowsetAlias | namedFunction rowsetAlias) | rowsetAlias)
-| tableNameQualified rowsetAlias tableHintGroup
-| openxml rowsetAlias
-| textTableFunction rowsetAlias
-| namedFunction rowsetAlias
+| variableName ('.' (columnName '.' namedFunction rowsetAlias? | namedFunction rowsetAlias?) | rowsetAlias)
+| tableNameQualified rowsetAlias? tableHintGroup
+| openxml rowsetAlias?
+| textTableFunction rowsetAlias?
+| namedFunction rowsetAlias?
 ;
 
 rowsetAlias: 'AS' aliasName '(' columnNameList ')'
 | aliasName '(' columnNameList ')'
 | 'AS' aliasName
-| aliasName
-|  ;
+| aliasName 
+;
 
 valuesList: '(' expressionList ')' (',' valuesList)* ;
 
