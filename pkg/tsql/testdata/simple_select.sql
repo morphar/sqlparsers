@@ -23,3 +23,5 @@ GO
 SELECT TOP 10.5 PERCENT *
 FROM Production.Product
 ORDER BY Name ASC;
+
+SELECT * FROM @x;

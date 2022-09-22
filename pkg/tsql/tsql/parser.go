@@ -1591,7 +1591,7 @@ type SourceRowset struct {
 	RowsetAlias7       *RowsetAlias        `@@?`
 	NamedFunction4     *NamedFunction      `| @@`
 	RowsetAlias8       *RowsetAlias        `@@? )`
-	RowsetAlias9       *RowsetAlias        `| @@ )`
+	RowsetAlias9       *RowsetAlias        `| @@ )?`
 	TableNameQualified *TableNameQualified `| @@`
 	RowsetAlias10      *RowsetAlias        `@@?`
 	TableHintGroup     *TableHintGroup     `@@?`

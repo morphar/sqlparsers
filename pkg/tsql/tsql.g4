@@ -1059,7 +1059,7 @@ sourceRowset
     )
     | namedFunction rowsetAlias?
 )
-| variableName ('.' (columnName '.' namedFunction rowsetAlias? | namedFunction rowsetAlias?) | rowsetAlias)
+| variableName ('.' (columnName '.' namedFunction rowsetAlias? | namedFunction rowsetAlias?) | rowsetAlias)?
 | tableNameQualified rowsetAlias? tableHintGroup
 | openxml rowsetAlias?
 | textTableFunction rowsetAlias?
