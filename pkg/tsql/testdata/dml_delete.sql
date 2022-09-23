@@ -123,23 +123,23 @@ EXEC sp_addlinkedserver @server = N'MyLinkServer',
     @catalog = N'AdventureWorks2012';
 GO
 
-DELETE MyLinkServer.AdventureWorks2012.HumanResources.Department WHERE DepartmentID > 16;
-GO
+-- DELETE MyLinkServer.AdventureWorks2012.HumanResources.Department WHERE DepartmentID > 16;
+-- GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Deleting data from a remote table by using the OPENQUERY function
 
-DELETE OPENQUERY (MyLinkServer, 'SELECT Name, GroupName FROM AdventureWorks2012.HumanResources.Department
-WHERE DepartmentID = 18');
-GO
+-- DELETE OPENQUERY (MyLinkServer, 'SELECT Name, GroupName FROM AdventureWorks2012.HumanResources.Department
+-- WHERE DepartmentID = 18');
+-- GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Deleting data from a remote table by using the OPENDATASOURCE function
 
-DELETE FROM OPENDATASOURCE('SQLNCLI',
-    'Data Source= <server_name>; Integrated Security=SSPI')
-    .AdventureWorks2012.HumanResources.Department 
-WHERE DepartmentID = 17;
+-- DELETE FROM OPENDATASOURCE('SQLNCLI',
+--     'Data Source= <server_name>; Integrated Security=SSPI')
+--     .AdventureWorks2012.HumanResources.Department 
+-- WHERE DepartmentID = 17;
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using DELETE with the OUTPUT clause
