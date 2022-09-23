@@ -185,7 +185,7 @@ var (
 			{"WRITETEXT", `WRITETEXT`, nil},
 			{"STRING_LITERAL", `N?'(\\'|[^'])*'`, nil},
 			{"INTEGER_LITERAL", `[0-9]+`, nil},
-			{"REAL_LITERAL", `[0-9]+\.[0-9]+`, nil},
+			{"REAL_LITERAL", `[0-9]*\.[0-9]+`, nil},
 			{"HEX_LITERAL", `0x[0-9a-zA-Z]+`, nil},
 			{"ID", `[a-zA-Z]([a-zA-Z0-9_])*`, nil},
 			{"QUOTED_ID", `(\[[^\[\]#]([^\[\]])*\]|"[^"#]([^"#])*")`, nil},

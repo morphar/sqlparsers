@@ -210,7 +210,7 @@ fragment ID_CH_DELIMITED_QUOTE_START: ID_CH_DELIMITED_QUOTE;
 
 STRING_LITERAL: 'N'? '\'' ( '\\\'' | ~'\'' )* '\'';
 INTEGER_LITERAL: [0-9]+;
-REAL_LITERAL: [0-9]+'.'[0-9]+;
+REAL_LITERAL: [0-9]*'.'[0-9]+;
 HEX_LITERAL: '0x'[0-9a-zA-Z]+;
 fragment LETTER: [a-zA-Z];
 
