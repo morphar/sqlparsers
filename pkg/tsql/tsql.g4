@@ -836,7 +836,7 @@ dropTypeStatement: 'DROP' 'TYPE' simpleTypeNameQualified ;
 
 tableDefinitionGroup: '(' tableDefinitionList ')' ;
 
-tableDefinitionList: tableDefinition (',' tableDefinition)* ;
+tableDefinitionList: tableDefinition (',' tableDefinition)* ','? ;
 
 tableDefinition: columnName columnDefinition
 | tableConstraint ;
@@ -873,11 +873,10 @@ columnConstraintList: columnConstraint* ;
 
 columnConstraint: namedColumnConstraint
 | 'COLLATE' collationName
-| 'IDENTITY'
-| 'IDENTITY' '(' INTEGER_LITERAL ',' INTEGER_LITERAL ')'
+| 'IDENTITY' ('(' INTEGER_LITERAL ',' INTEGER_LITERAL ')')?
 | 'ROWGUIDCOL'
-| 'NOT' 'NULL'
-| 'NULL' ;
+| 'NOT'? 'NULL' 
+;
 
 computedColumnConstraintList: computedColumnConstraint* ;
 

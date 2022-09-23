@@ -1207,7 +1207,7 @@ type TableDefinitionGroup struct {
 	TableDefinitionList *TableDefinitionList `'(' @@ ')'`
 }
 type TableDefinitionList struct {
-	TableDefinition []*TableDefinition `@@ ( ',' @@ )*`
+	TableDefinition []*TableDefinition `@@ ( ',' @@ )* ','?`
 }
 type TableDefinition struct {
 	ColumnName       *ColumnName       `@@`
@@ -1265,12 +1265,10 @@ type ColumnConstraintList struct {
 type ColumnConstraint struct {
 	NamedColumnConstraint *NamedColumnConstraint `@@`
 	CollationName         *CollationName         `| 'COLLATE' @@`
-	Identity              bool                   `| @'IDENTITY'`
-	IntegerLiteral        *string                `| 'IDENTITY' '(' @INTEGER_LITERAL`
-	IntegerLiteral2       *string                `',' @INTEGER_LITERAL ')'`
+	IntegerLiteral        *string                `| 'IDENTITY' ( '(' @INTEGER_LITERAL`
+	IntegerLiteral2       *string                `',' @INTEGER_LITERAL ')' )?`
 	Rowguidcol            bool                   `| @'ROWGUIDCOL'`
-	NotNull               bool                   `| @( 'NOT' 'NULL' )`
-	Null                  bool                   `| @'NULL'`
+	NotNull               bool                   `| @( 'NOT'? 'NULL' )`
 }
 type ComputedColumnConstraintList struct {
 	ComputedColumnConstraint []*ComputedColumnConstraint `@@*`
