@@ -1225,7 +1225,7 @@ expressionNegate: op=('-'|'+'|'~')? expressionCase ;
 rankingArguments: 'PARTITION' 'BY' expressionList optionalOrderClause
 | orderClause ;
 
-expressionCase: 'CASE' ( caseWhenPredicateList | expression caseWhenExpressionList) ('ELSE' expression 'END')? 'END'
+expressionCase: 'CASE' ( caseWhenPredicateList | expression caseWhenExpressionList) ('ELSE' expression)? 'END'
 | collatedValue ;
 
 caseWhenExpressionList: caseWhenExpression+ ;

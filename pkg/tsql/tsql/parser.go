@@ -1790,7 +1790,7 @@ type ExpressionCase struct {
 	CaseWhenPredicateList  *CaseWhenPredicateList  `'CASE' ( @@`
 	Expression             *Expression             `| @@`
 	CaseWhenExpressionList *CaseWhenExpressionList `@@ )`
-	Expression2            *Expression             `( 'ELSE' @@ 'END' )? 'END'`
+	Expression2            *Expression             `( 'ELSE' @@ )? 'END'`
 	CollatedValue          *CollatedValue          `| @@`
 }
 type CaseWhenExpressionList struct {
