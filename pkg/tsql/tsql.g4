@@ -1000,7 +1000,7 @@ optionalFrom: 'FROM'
 
 selectStatement: queryOptions selectQuery queryHint ;
 
-selectQuery: 'SELECT' restriction? topLegacy? columnItemList intoClause fromClause whereClause groupClause havingClause optionalOrderClause rowsetCombineClause? computeClause ;
+selectQuery: 'SELECT' restriction? topLegacy? columnItemList intoClause fromClause? whereClause groupClause havingClause optionalOrderClause rowsetCombineClause? computeClause ;
 
 topLegacy: 'TOP' (INTEGER_LITERAL|REAL_LITERAL) optionalPercent optionalWithTies
 | top ;

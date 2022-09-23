@@ -1488,7 +1488,7 @@ type SelectQuery struct {
 	TopLegacy           *TopLegacy           `@@?`
 	ColumnItemList      *ColumnItemList      `@@`
 	IntoClause          *IntoClause          `@@?`
-	FromClause          *FromClause          `@@`
+	FromClause          *FromClause          `@@?`
 	WhereClause         *WhereClause         `@@?`
 	GroupClause         *GroupClause         `@@?`
 	HavingClause        *HavingClause        `@@?`
