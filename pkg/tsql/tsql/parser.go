@@ -200,7 +200,9 @@ var (
 			{"XXX__LITERAL_Dollar", `\$`, nil},
 			{"XXX__LITERAL_DollarAction", `\$ACTION`, nil},
 			{"XXX__LITERAL_Percent", `%`, nil},
+			{"XXX__LITERAL_PercentEq", `%=`, nil},
 			{"XXX__LITERAL_Amp", `&`, nil},
+			{"XXX__LITERAL_AmpEq", `&=`, nil},
 			{"XXX__LITERAL_Lparen", `\(`, nil},
 			{"XXX__LITERAL_LparenNoexpandRparen", `\(NOEXPAND\)`, nil},
 			{"XXX__LITERAL_LparenNolockRparen", `\(NOLOCK\)`, nil},
@@ -218,11 +220,15 @@ var (
 			{"XXX__LITERAL_LparenXlockRparen", `\(XLOCK\)`, nil},
 			{"XXX__LITERAL_Rparen", `\)`, nil},
 			{"XXX__LITERAL_Star", `\*`, nil},
+			{"XXX__LITERAL_StarEq", `\*=`, nil},
 			{"XXX__LITERAL_Plus", `\+`, nil},
+			{"XXX__LITERAL_PlusEq", `\+=`, nil},
 			{"XXX__LITERAL_Comma", `,`, nil},
 			{"XXX__LITERAL_Minus", `-`, nil},
+			{"XXX__LITERAL_MinusEq", `-=`, nil},
 			{"XXX__LITERAL_Stop", `\.`, nil},
 			{"XXX__LITERAL_Fslash", `/`, nil},
+			{"XXX__LITERAL_FslashEq", `/=`, nil},
 			{"XXX__LITERAL_Colon", `:`, nil},
 			{"XXX__LITERAL_Lt", `<`, nil},
 			{"XXX__LITERAL_LtEq", `<=`, nil},
@@ -325,7 +331,9 @@ var (
 			{"XXX__LITERAL_Xml", `XML`, nil},
 			{"XXX__LITERAL_Xmlnamespaces", `XMLNAMESPACES`, nil},
 			{"XXX__LITERAL_Caret", `\^`, nil},
+			{"XXX__LITERAL_CaretEq", `\^=`, nil},
 			{"XXX__LITERAL_Pipe", `\|`, nil},
+			{"XXX__LITERAL_PipeEq", `\|=`, nil},
 			{"XXX__LITERAL_Tilde", `~`, nil},
 		},
 	}
@@ -362,8 +370,12 @@ type ColumnName struct {
 	ObjectName *ObjectName `@@ | '$ACTION'`
 }
 type ColumnNameFullyQualified struct {
-	TableNameQualified *TableNameQualified `( @@ '.' )?`
-	ColumnName         *ColumnName         `@@`
+	SchemaName  *SchemaName `@@`
+	TableName   *TableName  `'.' @@`
+	ColumnName  *ColumnName `'.' @@`
+	TableName2  *TableName  `| @@`
+	ColumnName2 *ColumnName `'.' @@`
+	ColumnName3 *ColumnName `| @@`
 }
 type ColumnNameQualified struct {
 	TableName  *TableName  `( @@ '.' )?`
@@ -708,17 +720,10 @@ type CursorType struct {
 	InsensitiveScroll *string `@( 'INSENSITIVE' | 'SCROLL' )`
 }
 type DeclareItem struct {
-	VariableName       *VariableName      `@@ 'CURSOR'`
-	VariableName2      *VariableName      `| @@`
-	TypeNameQualified  *TypeNameQualified `'AS' @@`
-	VariableName3      *VariableName      `| @@`
-	TypeNameQualified2 *TypeNameQualified `@@`
-	VariableName4      *VariableName      `| @@`
-	TypeNameQualified3 *TypeNameQualified `'AS' @@`
-	Expression         *Expression        `'=' @@`
-	VariableName5      *VariableName      `| @@`
-	TypeNameQualified4 *TypeNameQualified `@@`
-	Expression2        *Expression        `'=' @@`
+	VariableName      *VariableName      `@@ 'CURSOR'`
+	VariableName2     *VariableName      `| @@`
+	TypeNameQualified *TypeNameQualified `'AS'? @@`
+	Expression        *Expression        `( '=' @@ )?`
 }
 type DeclareItemList struct {
 	DeclareItem []*DeclareItem `@@ ( ',' @@ )*`
@@ -1451,9 +1456,13 @@ type UpdateStatement struct {
 type UpdateItemList struct {
 	UpdateItem []*UpdateItem `@@ ( ',' @@ )*`
 }
+type AssignmentOperator struct {
+	EqPlusEqMinusEqStarEqFslashEqPercentEqAmpEqCaretEqPipeEq *string `@( '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '^=' | '|=' )`
+}
 type UpdateItem struct {
 	ColumnNameFullyQualified *ColumnNameFullyQualified `@@`
-	Expression               *Expression               `'=' @@`
+	AssignmentOperator       *AssignmentOperator       `@@`
+	Expression               *Expression               `@@`
 	ColumnNameQualified      *ColumnNameQualified      `| @@ '=' 'DEFAULT'`
 	VariableName             *VariableName             `| @@`
 	ColumnNameQualified2     *ColumnNameQualified      `'=' ( @@ '=' )?`
@@ -1627,21 +1636,7 @@ type OptionalContainsTop struct {
 	IntegerLiteral *IntegerLiteral `',' @@`
 }
 type TableHintGroup struct {
-	TableHintList               *TableHintList `'WITH' '(' @@ ')'`
-	LparenNolockRparen          bool           `| @'(NOLOCK)'`
-	LparenReaduncommittedRparen bool           `| @'(READUNCOMMITTED)'`
-	LparenUpdlockRparen         bool           `| @'(UPDLOCK)'`
-	LparenRepeatablereadRparen  bool           `| @'(REPEATABLEREAD)'`
-	LparenSerializableRparen    bool           `| @'(SERIALIZABLE)'`
-	LparenReadcommittedRparen   bool           `| @'(READCOMMITTED)'`
-	LparenTablockRparen         bool           `| @'(TABLOCK)'`
-	LparenTablockxRparen        bool           `| @'(TABLOCKX)'`
-	LparenPaglockRparen         bool           `| @'(PAGLOCK)'`
-	LparenRowlockRparen         bool           `| @'(ROWLOCK)'`
-	LparenNowaitRparen          bool           `| @'(NOWAIT)'`
-	LparenReadpastRparen        bool           `| @'(READPAST)'`
-	LparenXlockRparen           bool           `| @'(XLOCK)'`
-	LparenNoexpandRparen        bool           `| @'(NOEXPAND)'`
+	TableHintList *TableHintList `'WITH' '(' @@ ')' | 'WITH'? ( '(NOLOCK)' | '(READUNCOMMITTED)' | '(UPDLOCK)' | '(REPEATABLEREAD)' | '(SERIALIZABLE)' | '(READCOMMITTED)' | '(TABLOCK)' | '(TABLOCKX)' | '(PAGLOCK)' | '(ROWLOCK)' | '(NOWAIT)' | '(READPAST)' | '(XLOCK)' | '(NOEXPAND)' )`
 }
 type TableHintList struct {
 	TableHint []*TableHint `@@ ( ',' @@ )*`
@@ -1674,7 +1669,9 @@ type IndexValue struct {
 	ObjectName     *ObjectName `| @@`
 }
 type WhereClause struct {
-	Predicate *Predicate `'WHERE' @@`
+	Predicate    *Predicate    `'WHERE' @@`
+	VariableName *VariableName `| 'WHERE' 'CURRENT' 'OF' ( @@`
+	CursorName   *CursorName   `| @@ )`
 }
 type GroupClause struct {
 	ExpressionList *ExpressionList `'GROUP' 'BY' @@`

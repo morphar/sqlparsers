@@ -248,7 +248,10 @@ collationName: ID ;
 columnName: objectName
 | '$ACTION' ;
 
-columnNameFullyQualified: (tableNameQualified '.')? columnName ;
+columnNameFullyQualified
+: schemaName '.' tableName '.' columnName 
+| tableName '.' columnName 
+| columnName ;
 
 columnNameQualified: (tableName '.')? columnName ;
 
@@ -509,10 +512,8 @@ cursorType: 'INSENSITIVE'
 |  ;
 
 declareItem: variableName 'CURSOR'
-| variableName 'AS' typeNameQualified
-| variableName typeNameQualified
-| variableName 'AS' typeNameQualified '=' expression
-| variableName typeNameQualified '=' expression ;
+| variableName 'AS'? typeNameQualified ('=' expression)?
+;
 
 declareItemList: declareItem (',' declareItem)* ;
 
@@ -987,7 +988,9 @@ updateStatement: queryOptions 'UPDATE' optionalTop destinationRowset 'SET' updat
 
 updateItemList: updateItem (',' updateItem)* ;
 
-updateItem: columnNameFullyQualified '=' expression
+assignmentOperator: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '^=' | '|=' ;
+
+updateItem: columnNameFullyQualified assignmentOperator expression
 | columnNameQualified '=' 'DEFAULT'
 | variableName '=' (columnNameQualified '=')? expression
 | ( variableName | tableName (columnName '.')? ) '.' namedFunctionList;
@@ -1084,20 +1087,22 @@ optionalContainsTop: ',' integerLiteral
 |  ;
 
 tableHintGroup: 'WITH' '(' tableHintList ')'
-| '(NOLOCK)'
-| '(READUNCOMMITTED)'
-| '(UPDLOCK)'
-| '(REPEATABLEREAD)'
-| '(SERIALIZABLE)'
-| '(READCOMMITTED)'
-| '(TABLOCK)'
-| '(TABLOCKX)'
-| '(PAGLOCK)'
-| '(ROWLOCK)'
-| '(NOWAIT)'
-| '(READPAST)'
-| '(XLOCK)'
-| '(NOEXPAND)'
+| 'WITH'? 
+    ( '(NOLOCK)'
+    | '(READUNCOMMITTED)'
+    | '(UPDLOCK)'
+    | '(REPEATABLEREAD)'
+    | '(SERIALIZABLE)'
+    | '(READCOMMITTED)'
+    | '(TABLOCK)'
+    | '(TABLOCKX)'
+    | '(PAGLOCK)'
+    | '(ROWLOCK)'
+    | '(NOWAIT)'
+    | '(READPAST)'
+    | '(XLOCK)'
+    | '(NOEXPAND)'
+    )
 |  ;
 
 tableHintList: tableHint (',' tableHint)* ;
@@ -1127,7 +1132,10 @@ indexValue: INTEGER_LITERAL
 ;
 
 whereClause: 'WHERE' predicate
+| 'WHERE' 'CURRENT' 'OF' (variableName|cursorName)
 |  ;
+
+
 
 groupClause: 'GROUP' 'BY' expressionList
 |  ;
