@@ -306,9 +306,9 @@ GO
 -- Specify the remote data source in the FROM clause using a four-part name 
 -- in the form linked_server.catalog.schema.object.
 
-INSERT INTO MyLinkServer.AdventureWorks2012.HumanResources.Department (Name, GroupName)
-VALUES (N'Public Relations', N'Executive General and Administration');
-GO
+-- INSERT INTO MyLinkServer.AdventureWorks2012.HumanResources.Department (Name, GroupName)
+-- VALUES (N'Public Relations', N'Executive General and Administration');
+-- GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Inserting data into a remote table by using the OPENQUERY function
