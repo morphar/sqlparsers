@@ -313,15 +313,15 @@ GO
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Inserting data into a remote table by using the OPENQUERY function
 
-INSERT OPENQUERY (MyLinkServer, 'SELECT Name, GroupName FROM AdventureWorks2012.HumanResources.Department')
-VALUES ('Environmental Impact', 'Engineering');
-GO
+-- INSERT OPENQUERY (MyLinkServer, 'SELECT Name, GroupName FROM AdventureWorks2012.HumanResources.Department')
+-- VALUES ('Environmental Impact', 'Engineering');
+-- GO
 
-INSERT INTO OPENDATASOURCE('SQLNCLI',
-    'Data Source= <server_name>; Integrated Security=SSPI')
-    .AdventureWorks2012.HumanResources.Department (Name, GroupName)
-    VALUES (N'Standards and Methods', 'Quality Assurance');
-GO
+-- INSERT INTO OPENDATASOURCE('SQLNCLI',
+--     'Data Source= <server_name>; Integrated Security=SSPI')
+--     .AdventureWorks2012.HumanResources.Department (Name, GroupName)
+--     VALUES (N'Standards and Methods', 'Quality Assurance');
+-- GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Inserting data into a heap with minimal logging
@@ -341,9 +341,9 @@ CREATE TABLE Sales.SalesHistory(
     ModifiedDate datetime NOT NULL );
 GO
 -- Temporarily set the recovery model to BULK_LOGGED.
-ALTER DATABASE AdventureWorks2012
-SET RECOVERY BULK_LOGGED;
-GO
+-- ALTER DATABASE AdventureWorks2012
+-- SET RECOVERY BULK_LOGGED;
+-- GO
 -- Transfer data from Sales.SalesOrderDetail to Sales.SalesHistory
 INSERT INTO Sales.SalesHistory WITH (TABLOCK)
     (SalesOrderID, 
@@ -360,20 +360,20 @@ INSERT INTO Sales.SalesHistory WITH (TABLOCK)
 SELECT * FROM Sales.SalesOrderDetail;
 GO
 -- Reset the recovery model.
-ALTER DATABASE AdventureWorks2012
-SET RECOVERY FULL;
-GO
+-- ALTER DATABASE AdventureWorks2012
+-- SET RECOVERY FULL;
+-- GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using the OPENROWSET function with BULK to bulk load data into a table
 
 -- Use the OPENROWSET function to specify the data source and specifies the IGNORE_TRIGGERS table hint.
-INSERT INTO HumanResources.Department WITH (IGNORE_TRIGGERS) (Name, GroupName)
-SELECT b.Name, b.GroupName 
-FROM OPENROWSET (
-    BULK 'C:\SQLFiles\DepartmentData.txt',
-    FORMATFILE = 'C:\SQLFiles\BulkloadFormatFile.xml',
-    ROWS_PER_BATCH = 15000)AS b ;
+-- INSERT INTO HumanResources.Department WITH (IGNORE_TRIGGERS) (Name, GroupName)
+-- SELECT b.Name, b.GroupName 
+-- FROM OPENROWSET (
+--     BULK 'C:\SQLFiles\DepartmentData.txt',
+--     FORMATFILE = 'C:\SQLFiles\BulkloadFormatFile.xml',
+--     ROWS_PER_BATCH = 15000)AS b ;
     
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using the TABLOCK hint to specify a locking method
