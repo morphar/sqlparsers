@@ -954,6 +954,7 @@ queryHintOption: 'MAXRECURSION' INTEGER_LITERAL
 | ('HASH'|'ORDER') 'GROUP'
 | 'FAST' INTEGER_LITERAL
 | ('CONCAT'|'HASH'|'MERGE') 'UNION'
+| 'OPTIMIZE' 'FOR' '(' variableName '=' expression ')'
 ;
 
 queryHintOptionList: queryHintOption (',' queryHintOption)* ;

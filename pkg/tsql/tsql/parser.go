@@ -283,6 +283,7 @@ var (
 			{"XXX__LITERAL_None", `NONE`, nil},
 			{"XXX__LITERAL_Nowait", `NOWAIT`, nil},
 			{"XXX__LITERAL_Only", `ONLY`, nil},
+			{"XXX__LITERAL_Optimize", `OPTIMIZE`, nil},
 			{"XXX__LITERAL_Output", `OUTPUT`, nil},
 			{"XXX__LITERAL_Page", `PAGE`, nil},
 			{"XXX__LITERAL_Paglock", `PAGLOCK`, nil},
@@ -1383,11 +1384,13 @@ type QueryHint struct {
 	QueryHintOptionList *QueryHintOptionList `'OPTION' '(' @@ ')'`
 }
 type QueryHintOption struct {
-	IntegerLiteral       *string `'MAXRECURSION' @INTEGER_LITERAL`
-	Recompile            bool    `| @'RECOMPILE'`
-	HashOrderGroup       bool    `| @( ( 'HASH' | 'ORDER' ) 'GROUP' )`
-	IntegerLiteral2      *string `| 'FAST' @INTEGER_LITERAL`
-	ConcatHashMergeUnion bool    `| @( ( 'CONCAT' | 'HASH' | 'MERGE' ) 'UNION' )`
+	IntegerLiteral       *string       `'MAXRECURSION' @INTEGER_LITERAL`
+	Recompile            bool          `| @'RECOMPILE'`
+	HashOrderGroup       bool          `| @( ( 'HASH' | 'ORDER' ) 'GROUP' )`
+	IntegerLiteral2      *string       `| 'FAST' @INTEGER_LITERAL`
+	ConcatHashMergeUnion bool          `| @( ( 'CONCAT' | 'HASH' | 'MERGE' ) 'UNION' )`
+	VariableName         *VariableName `| 'OPTIMIZE' 'FOR' '(' @@`
+	Expression           *Expression   `'=' @@ ')'`
 }
 type QueryHintOptionList struct {
 	QueryHintOption []*QueryHintOption `@@ ( ',' @@ )*`
