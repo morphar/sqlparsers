@@ -184,7 +184,7 @@ var (
 			{"WHILE", `WHILE`, nil},
 			{"WITH", `WITH`, nil},
 			{"WRITETEXT", `WRITETEXT`, nil},
-			{"STRING_LITERAL", `N?'(\\'|[^'])*'`, nil},
+			{"STRING_LITERAL", `N?'(''|\\'|[^'])*'`, nil},
 			{"INTEGER_LITERAL", `[0-9]+`, nil},
 			{"REAL_LITERAL", `[0-9]*\.[0-9]+`, nil},
 			{"HEX_LITERAL", `0x[0-9a-zA-Z]+`, nil},
@@ -1015,7 +1015,8 @@ type ExecuteStatement struct {
 	ProcedureOptionGroup    *ProcedureOptionGroup   `@@?`
 	ProcedureNameQualified2 *ProcedureNameQualified `| @@`
 	ExecuteParameterGroup2  *ExecuteParameterGroup  `@@?`
-	ProcedureOptionGroup2   *ProcedureOptionGroup   `@@? )`
+	ProcedureOptionGroup2   *ProcedureOptionGroup   `@@?`
+	StringLiteral           *StringLiteral          `| '(' @@ ')' )`
 }
 type ExecuteParameterGroup struct {
 	ExecuteParameterList *ExecuteParameterList `@@`

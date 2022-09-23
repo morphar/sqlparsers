@@ -209,7 +209,7 @@ fragment ID_CH_DELIMITED_QUOTE: [^"#];
 fragment ID_CH_SINGLE_DELIMITED_QUOTE: [^'#];
 fragment ID_CH_DELIMITED_QUOTE_START: ID_CH_DELIMITED_QUOTE;
 
-STRING_LITERAL: 'N'? '\'' ( '\\\'' | ~'\'' )* '\'';
+STRING_LITERAL: 'N'? '\'' ( '\'\'' | '\\\'' | ~'\'' )* '\'';
 INTEGER_LITERAL: [0-9]+;
 REAL_LITERAL: [0-9]*'.'[0-9]+;
 HEX_LITERAL: '0x'[0-9a-zA-Z]+;
@@ -703,6 +703,7 @@ dropProcedureStatement: 'DROP' PROCEDURE procedureNameQualified ;
 executeStatement: EXECUTE 
 ( variableName '=' procedureNameQualified executeParameterGroup procedureOptionGroup
 | procedureNameQualified executeParameterGroup procedureOptionGroup 
+| '(' stringLiteral ')'
 );
 
 executeParameterGroup: executeParameterList
