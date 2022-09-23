@@ -71,7 +71,7 @@ var (
 			{"ERRLVL", `ERRLVL`, nil},
 			{"ESCAPE", `ESCAPE`, nil},
 			{"EXCEPT", `EXCEPT`, nil},
-			{"EXECUTE", `EXECUTE?`, nil},
+			{"EXECUTE", `(EXECUTE|EXEC)`, nil},
 			{"EXISTS", `EXISTS`, nil},
 			{"EXIT", `EXIT`, nil},
 			{"FETCH", `FETCH`, nil},
@@ -1027,22 +1027,12 @@ type ExecuteParameterList struct {
 	ExecuteParameter []*ExecuteParameter `@@ ( ',' @@ )*`
 }
 type ExecuteParameter struct {
-	TableNameQualified  *TableNameQualified `@@`
-	ParameterName       *ParameterName      `| @@`
-	VariableName        *VariableName       `'=' @@`
-	OptionalOutput      *OptionalOutput     `@@?`
-	ParameterName2      *ParameterName      `| @@`
-	SystemVariableName  *SystemVariableName `'=' @@`
-	OptionalOutput2     *OptionalOutput     `@@?`
-	ParameterName3      *ParameterName      `| @@`
-	Literal             *Literal            `'=' @@`
-	OptionalOutput3     *OptionalOutput     `@@?`
-	VariableName2       *VariableName       `| @@`
-	OptionalOutput4     *OptionalOutput     `@@?`
-	SystemVariableName2 *SystemVariableName `| @@`
-	OptionalOutput5     *OptionalOutput     `@@?`
-	Literal2            *Literal            `| @@`
-	OptionalOutput6     *OptionalOutput     `@@?`
+	TableNameQualified *TableNameQualified `@@`
+	ParameterName      *ParameterName      `| ( @@ '=' )?`
+	VariableName       *VariableName       `( @@`
+	SystemVariableName *SystemVariableName `| @@`
+	Literal            *Literal            `| @@ )`
+	OptionalOutput     *OptionalOutput     `@@?`
 }
 type CreateTableStatement struct {
 	TableNameQualified   *TableNameQualified   `'CREATE' 'TABLE' @@`

@@ -88,7 +88,7 @@ END: 'END';
 ERRLVL: 'ERRLVL';
 ESCAPE: 'ESCAPE';
 EXCEPT: 'EXCEPT';
-EXECUTE: 'EXEC' 'UTE'?;
+EXECUTE: 'EXECUTE' | 'EXEC';
 EXISTS: 'EXISTS';
 EXIT: 'EXIT';
 FETCH: 'FETCH';
@@ -713,12 +713,8 @@ executeParameterGroup: executeParameterList
 executeParameterList: executeParameter (',' executeParameter)* ;
 
 executeParameter: tableNameQualified
-| parameterName '=' variableName optionalOutput
-| parameterName '=' systemVariableName optionalOutput
-| parameterName '=' literal optionalOutput
-| variableName optionalOutput
-| systemVariableName optionalOutput
-| literal optionalOutput ;
+| (parameterName '=')? (variableName|systemVariableName|literal) optionalOutput
+;
 
 createTableStatement: 'CREATE' 'TABLE' tableNameQualified tableDefinitionGroup ('WITH' '(' tableOptionList ')')? ;
 
