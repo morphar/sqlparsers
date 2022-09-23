@@ -16,3 +16,6 @@ The antlr2participle tool is experimental.
 - Materialized columns
 - Some table options
 - Some hint options
+- Updating data in a remote table by using a linked server
+- OPENQUERY
+- OPENROWSET

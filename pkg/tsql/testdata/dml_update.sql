@@ -294,32 +294,32 @@ GO
 -- Create a link to the remote data source. 
 -- Specify a valid server name for @datasrc as 'server_name' or 'server_name\instance_name'.
 
-EXEC sp_addlinkedserver @server = N'MyLinkServer',
-    @srvproduct = N' ',
-    @provider = N'SQLNCLI10', 
-    @datasrc = N'<server name>',
-    @catalog = N'AdventureWorks2012';
-GO
-USE AdventureWorks2012;
-GO
+-- EXEC sp_addlinkedserver @server = N'MyLinkServer',
+--     @srvproduct = N' ',
+--     @provider = N'SQLNCLI10', 
+--     @datasrc = N'<server name>',
+--     @catalog = N'AdventureWorks2012';
+-- GO
+-- USE AdventureWorks2012;
+-- GO
 -- Specify the remote data source using a four-part name 
 -- in the form linked_server.catalog.schema.object.
 
-UPDATE MyLinkServer.AdventureWorks2012.HumanResources.Department
-SET GroupName = N'Public Relations'
-WHERE DepartmentID = 4;
+-- UPDATE MyLinkServer.AdventureWorks2012.HumanResources.Department
+-- SET GroupName = N'Public Relations'
+-- WHERE DepartmentID = 4;
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Updating data in a remote table by using the OPENQUERY function
 
-UPDATE OPENQUERY (MyLinkServer, 'SELECT GroupName FROM HumanResources.Department WHERE DepartmentID = 4') 
-SET GroupName = 'Sales and Marketing';
+-- UPDATE OPENQUERY (MyLinkServer, 'SELECT GroupName FROM HumanResources.Department WHERE DepartmentID = 4') 
+-- SET GroupName = 'Sales and Marketing';
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Updating data in a remote table by using the OPENDATASOURCE function
 
-UPDATE OPENQUERY (MyLinkServer, 'SELECT GroupName FROM HumanResources.Department WHERE DepartmentID = 4') 
-SET GroupName = 'Sales and Marketing';
+-- UPDATE OPENQUERY (MyLinkServer, 'SELECT GroupName FROM HumanResources.Department WHERE DepartmentID = 4') 
+-- SET GroupName = 'Sales and Marketing';
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using UPDATE with .WRITE to modify data in an nvarchar(max) column
@@ -399,21 +399,21 @@ SET GroupName = 'Sales and Marketing';
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using UPDATE with OPENROWSET to modify a varbinary(max) column
 
-USE AdventureWorks2012;
-GO
-UPDATE Production.ProductPhoto
-SET ThumbNailPhoto = (
-    SELECT *
-    FROM OPENROWSET(BULK 'c:\Tires.jpg', SINGLE_BLOB) AS x )
-WHERE ProductPhotoID = 1;
-GO
+-- USE AdventureWorks2012;
+-- GO
+-- UPDATE Production.ProductPhoto
+-- SET ThumbNailPhoto = (
+--     SELECT *
+--     FROM OPENROWSET(BULK 'c:\Tires.jpg', SINGLE_BLOB) AS x )
+-- WHERE ProductPhotoID = 1;
+-- GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using UPDATE to modify FILESTREAM data
 
-UPDATE Archive.dbo.Records
-SET [Chart] = CAST('Xray 1' as varbinary(max))
-WHERE [SerialNumber] = 2;
+-- UPDATE Archive.dbo.Records
+-- SET [Chart] = CAST('Xray 1' as varbinary(max))
+-- WHERE [SerialNumber] = 2;
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- Using a system data type
