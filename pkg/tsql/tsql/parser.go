@@ -1075,16 +1075,12 @@ type DropTableStatement struct {
 	TableNameQualified *TableNameQualified `'DROP' 'TABLE' @@`
 }
 type CreateOrAlterViewStatement struct {
-	ViewNameQualified        *ViewNameQualified       `'CREATE' 'VIEW' @@`
-	ColumnNameGroup          *ColumnNameGroup         `@@?`
-	ViewOptionalAttribute    *ViewOptionalAttribute   `@@?`
-	SelectStatement          *SelectStatement         `'AS' @@`
-	ViewOptionalCheckOption  *ViewOptionalCheckOption `@@?`
-	ViewNameQualified2       *ViewNameQualified       `| 'ALTER' 'VIEW' @@`
-	ColumnNameGroup2         *ColumnNameGroup         `@@?`
-	ViewOptionalAttribute2   *ViewOptionalAttribute   `@@?`
-	SelectStatement2         *SelectStatement         `'AS' @@`
-	ViewOptionalCheckOption2 *ViewOptionalCheckOption `@@?`
+	Cmd                     *string                  `@( 'CREATE' | 'ALTER' )`
+	ViewNameQualified       *ViewNameQualified       `'VIEW' @@`
+	ColumnNameGroup         *ColumnNameGroup         `@@?`
+	ViewOptionalAttribute   *ViewOptionalAttribute   `@@?`
+	SelectStatement         *SelectStatement         `'AS' @@`
+	ViewOptionalCheckOption *ViewOptionalCheckOption `@@?`
 }
 type ColumnNameGroup struct {
 	ColumnNameList *ColumnNameList `'(' @@ ')'`

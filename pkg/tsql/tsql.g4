@@ -749,8 +749,7 @@ tableCheck: 'WITH' 'CHECK'
 
 dropTableStatement: 'DROP' 'TABLE' tableNameQualified ;
 
-createOrAlterViewStatement: 'CREATE' 'VIEW' viewNameQualified columnNameGroup viewOptionalAttribute 'AS' selectStatement viewOptionalCheckOption
-| 'ALTER' 'VIEW' viewNameQualified columnNameGroup viewOptionalAttribute 'AS' selectStatement viewOptionalCheckOption ;
+createOrAlterViewStatement: cmd=('CREATE'|'ALTER') 'VIEW' viewNameQualified columnNameGroup viewOptionalAttribute 'AS' selectStatement viewOptionalCheckOption;
 
 columnNameGroup: '(' columnNameList ')'
 |  ;
