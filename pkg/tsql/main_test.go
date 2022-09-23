@@ -56,7 +56,7 @@ func TestExe(t *testing.T) {
 	var Parser = participle.MustBuild(
 		&tsql.Script{},
 		participle.Lexer(Lexer),
-		participle.UseLookahead(50),
+		participle.UseLookahead(200),
 		participle.Trace(trace),
 		participle.CaseInsensitive(caseInsensitiveTokens...),
 	)
