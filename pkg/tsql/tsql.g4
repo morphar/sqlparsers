@@ -181,9 +181,10 @@ TEXTSIZE: 'TEXTSIZE';
 THEN: 'THEN';
 TO: 'TO';
 TOP: 'TOP';
-TRANSACTION: 'TRAN' 'SACTION'?;
+TRANSACTION: ('TRANSACTION' | 'TRAN');
 TRIGGER: 'TRIGGER';
 TRUNCATE: 'TRUNCATE';
+TRY: 'TRY';
 TSEQUAL: 'TSEQUAL';
 UNION: 'UNION';
 UNIQUE: 'UNIQUE';
@@ -607,10 +608,7 @@ stringValue: stringLiteral
 
 beginTransactionStatement: 'BEGIN' TRANSACTION (transactionIdentifier ('WITH' 'MARK' stringLiteral?)?)? ;
 
-commitTransactionStatement: 'COMMIT'
-| 'COMMIT' 'WORK'
-| 'COMMIT' TRANSACTION
-| 'COMMIT' TRANSACTION transactionIdentifier ;
+commitTransactionStatement: 'COMMIT' ('WORK' | TRANSACTION transactionIdentifier? )? ;
 
 rollbackTransactionStatement: 'ROLLBACK' ('WORK' | TRANSACTION transactionIdentifier? )? ;
 

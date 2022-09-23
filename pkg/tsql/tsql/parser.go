@@ -164,9 +164,10 @@ var (
 			{"THEN", `THEN`, nil},
 			{"TO", `TO`, nil},
 			{"TOP", `TOP`, nil},
-			{"TRANSACTION", `TRANSACTION?`, nil},
+			{"TRANSACTION", `(TRANSACTION|TRAN)`, nil},
 			{"TRIGGER", `TRIGGER`, nil},
 			{"TRUNCATE", `TRUNCATE`, nil},
+			{"TRY", `TRY`, nil},
 			{"TSEQUAL", `TSEQUAL`, nil},
 			{"UNION", `UNION`, nil},
 			{"UNIQUE", `UNIQUE`, nil},
@@ -317,7 +318,6 @@ var (
 			{"XXX__LITERAL_Tablockx", `TABLOCKX`, nil},
 			{"XXX__LITERAL_Target", `TARGET`, nil},
 			{"XXX__LITERAL_Ties", `TIES`, nil},
-			{"XXX__LITERAL_Try", `TRY`, nil},
 			{"XXX__LITERAL_TryCast", `TRY_CAST`, nil},
 			{"XXX__LITERAL_TryConvert", `TRY_CONVERT`, nil},
 			{"XXX__LITERAL_Type", `TYPE`, nil},
@@ -858,11 +858,8 @@ type BeginTransactionStatement struct {
 	StringLiteral         *StringLiteral         `( 'WITH' 'MARK' @@? )? )?`
 }
 type CommitTransactionStatement struct {
-	Commit                bool                   `@'COMMIT'`
-	CommitWork            bool                   `| @( 'COMMIT' 'WORK' )`
-	Transaction           *string                `| 'COMMIT' @TRANSACTION`
-	Transaction2          *string                `| 'COMMIT' @TRANSACTION`
-	TransactionIdentifier *TransactionIdentifier `@@`
+	Transaction           *string                `'COMMIT' ( 'WORK' | @TRANSACTION`
+	TransactionIdentifier *TransactionIdentifier `@@? )?`
 }
 type RollbackTransactionStatement struct {
 	Transaction           *string                `'ROLLBACK' ( 'WORK' | @TRANSACTION`
